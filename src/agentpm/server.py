@@ -20,30 +20,65 @@ from agentpm.store.memory_store import MemoryStore
 from agentpm.store.project_store import ProjectStore
 from agentpm.store.task_store import TaskStore
 
-# Resolve .agentpm root directory
-_ROOT_ENV = os.environ.get("AGENTPM_ROOT")
-if _ROOT_ENV:
-    AGENTPM_ROOT = Path(_ROOT_ENV)
-elif os.environ.get("AGENTPM_HOME"):
-    AGENTPM_ROOT = Path.home() / ".agentpm"
-else:
-    # Default: .agentpm in current working directory
-    AGENTPM_ROOT = Path.cwd() / ".agentpm"
 
-# Stores
-task_store = TaskStore(AGENTPM_ROOT)
-project_store = ProjectStore(AGENTPM_ROOT)
-memory_store = MemoryStore(AGENTPM_ROOT)
+# --- Lazy store initialization (C3 fix) ---
+
+def _resolve_root() -> Path:
+    root_env = os.environ.get("AGENTPM_ROOT")
+    if root_env:
+        return Path(root_env)
+    if os.environ.get("AGENTPM_HOME"):
+        return Path.home() / ".agentpm"
+    return Path.cwd() / ".agentpm"
+
+
+class _Stores:
+    """Lazy-initialized stores. Resolves root at first access, not import time."""
+
+    def __init__(self):
+        self._task: TaskStore | None = None
+        self._project: ProjectStore | None = None
+        self._memory: MemoryStore | None = None
+        self._root: Path | None = None
+
+    @property
+    def root(self) -> Path:
+        if self._root is None:
+            self._root = _resolve_root()
+        return self._root
+
+    @property
+    def task(self) -> TaskStore:
+        if self._task is None:
+            self._task = TaskStore(self.root)
+        return self._task
+
+    @property
+    def project(self) -> ProjectStore:
+        if self._project is None:
+            self._project = ProjectStore(self.root)
+        return self._project
+
+    @property
+    def memory(self) -> MemoryStore:
+        if self._memory is None:
+            self._memory = MemoryStore(self.root)
+        return self._memory
+
+
+stores = _Stores()
 
 # In-memory agent registry (agents re-register each session)
 _agents: dict[str, Agent] = {}
+
+_VALID_STATUSES = ", ".join(s.value for s in TaskStatus)
 
 # MCP Server
 mcp = FastMCP(
     "agentpm",
     instructions=(
         "agentpm is a universal project management system for AI coding agents. "
-        "Use pm.* tools to manage projects, tasks, memory, and agent coordination. "
+        "Use pm_* tools to manage projects, tasks, memory, and agent coordination. "
         "Tasks are stored as Markdown files with YAML frontmatter in .agentpm/. "
         "Start with pm_board_init to initialize, then pm_project_create to create a project."
     ),
@@ -56,21 +91,21 @@ mcp = FastMCP(
 @mcp.tool()
 def pm_board_init(name: str = "agentpm") -> str:
     """Initialize .agentpm/ directory in the current project. Run this first."""
-    config = project_store.init_board(name)
-    return f"Initialized agentpm board at {AGENTPM_ROOT}. Config: {json.dumps(config.model_dump())}"
+    config = stores.project.init_board(name)
+    return f"Initialized agentpm board at {stores.root}. Config: {json.dumps(config.model_dump())}"
 
 
 @mcp.tool()
 def pm_board_status() -> str:
     """Get overview of all projects: task counts by status, blocked tasks, active agents."""
-    projects = project_store.list_projects()
+    projects = stores.project.list_projects()
     total = 0
     by_status: dict[str, int] = {}
     blocked: list[str] = []
     recent: list[str] = []
 
     for proj in projects:
-        tasks = task_store.list_tasks(proj)
+        tasks = stores.task.list_tasks(proj)
         total += len(tasks)
         for t in tasks:
             by_status[t.status.value] = by_status.get(t.status.value, 0) + 1
@@ -84,13 +119,13 @@ def pm_board_status() -> str:
     active = [a.id for a in _agents.values() if a.status == "active"]
 
     lines = [
-        f"# Board Status",
+        "# Board Status",
         f"Projects: {', '.join(projects) or 'none'}",
         f"Total tasks: {total}",
         f"By status: {json.dumps(by_status)}",
         f"Blocked: {', '.join(blocked) or 'none'}",
         f"Active agents: {', '.join(active) or 'none'}",
-        f"Recent activity (last 5):",
+        "Recent activity (last 5):",
     ]
     for r in recent[:5]:
         lines.append(f"  {r}")
@@ -104,14 +139,17 @@ def pm_board_status() -> str:
 @mcp.tool()
 def pm_project_create(name: str, description: str = "") -> str:
     """Create a new project with spec.md, plan.md, and tasks/ directory."""
-    project = project_store.create_project(name, description)
-    return f"Created project '{name}' at {AGENTPM_ROOT}/projects/{name}/. Edit spec.md to define requirements."
+    try:
+        stores.project.create_project(name, description)
+    except ValueError as e:
+        return f"Error: {e}"
+    return f"Created project '{name}'. Edit spec.md to define requirements."
 
 
 @mcp.tool()
 def pm_project_list() -> str:
     """List all projects."""
-    projects = project_store.list_projects()
+    projects = stores.project.list_projects()
     if not projects:
         return "No projects yet. Use pm_project_create to create one."
     return "Projects:\n" + "\n".join(f"  - {p}" for p in projects)
@@ -120,7 +158,10 @@ def pm_project_list() -> str:
 @mcp.tool()
 def pm_project_get(project: str) -> str:
     """Get project details including spec and plan."""
-    p = project_store.get_project(project)
+    try:
+        p = stores.project.get_project(project)
+    except ValueError as e:
+        return f"Error: {e}"
     if not p:
         return f"Project '{project}' not found."
     return f"# Project: {p.name}\n\n## Spec\n{p.spec}\n\n## Plan\n{p.plan}"
@@ -129,14 +170,20 @@ def pm_project_get(project: str) -> str:
 @mcp.tool()
 def pm_spec_update(project: str, content: str) -> str:
     """Update a project's spec.md (living specification)."""
-    project_store.update_spec(project, content)
+    try:
+        stores.project.update_spec(project, content)
+    except (ValueError, FileNotFoundError) as e:
+        return f"Error: {e}"
     return f"Updated spec for '{project}'."
 
 
 @mcp.tool()
 def pm_plan_update(project: str, content: str) -> str:
     """Update a project's plan.md."""
-    project_store.update_plan(project, content)
+    try:
+        stores.project.update_plan(project, content)
+    except (ValueError, FileNotFoundError) as e:
+        return f"Error: {e}"
     return f"Updated plan for '{project}'."
 
 
@@ -155,16 +202,19 @@ def pm_task_create(
     tags: list[str] | None = None,
 ) -> str:
     """Create a new task in a project."""
-    task = task_store.create_task(
-        project=project,
-        title=title,
-        context=description,
-        priority=priority,
-        type=task_type,
-        depends_on=depends_on or [],
-        acceptance_criteria=acceptance_criteria or [],
-        tags=tags or [],
-    )
+    try:
+        task = stores.task.create_task(
+            project=project,
+            title=title,
+            context=description,
+            priority=priority,
+            type=task_type,
+            depends_on=depends_on or [],
+            acceptance_criteria=acceptance_criteria or [],
+            tags=tags or [],
+        )
+    except ValueError as e:
+        return f"Error: {e}"
     status_note = ""
     if task.depends_on:
         status_note = f" (blocked by: {', '.join(task.depends_on)})"
@@ -179,9 +229,18 @@ def pm_task_list(
     tag: str | None = None,
     task_type: str | None = None,
 ) -> str:
-    """List tasks in a project with optional filters."""
-    status_enum = TaskStatus(status) if status else None
-    tasks = task_store.list_tasks(project, status=status_enum, assigned=assigned, tag=tag, task_type=task_type)
+    """List tasks in a project with optional filters. Valid statuses: pending, in_progress, blocked, review, done, cancelled."""
+    status_enum = None
+    if status:
+        try:
+            status_enum = TaskStatus(status)
+        except ValueError:
+            return f"Invalid status '{status}'. Valid values: {_VALID_STATUSES}"
+
+    try:
+        tasks = stores.task.list_tasks(project, status=status_enum, assigned=assigned, tag=tag, task_type=task_type)
+    except ValueError as e:
+        return f"Error: {e}"
 
     if not tasks:
         return f"No tasks found in '{project}' with the given filters."
@@ -197,7 +256,10 @@ def pm_task_list(
 @mcp.tool()
 def pm_task_get(project: str, task_id: str) -> str:
     """Get full details of a specific task."""
-    task = task_store.get_task(project, task_id)
+    try:
+        task = stores.task.get_task(project, task_id)
+    except ValueError as e:
+        return f"Error: {e}"
     if not task:
         return f"Task '{task_id}' not found in project '{project}'."
 
@@ -233,21 +295,24 @@ def pm_task_get(project: str, task_id: str) -> str:
 @mcp.tool()
 def pm_task_claim(project: str, task_id: str, agent_id: str) -> str:
     """Claim a pending task. Sets assigned agent and status to in_progress."""
-    task = task_store.get_task(project, task_id)
+    try:
+        task = stores.task.get_task(project, task_id)
+    except ValueError as e:
+        return f"Error: {e}"
     if not task:
         return f"Task '{task_id}' not found."
     if task.status not in (TaskStatus.PENDING, TaskStatus.BLOCKED):
         return f"Task '{task_id}' is {task.status.value}, cannot claim."
 
     # Check if dependencies are met
-    all_tasks = task_store.list_tasks(project)
+    all_tasks = stores.task.list_tasks(project)
     done_ids = {t.id for t in all_tasks if t.status == TaskStatus.DONE}
     unmet = [d for d in task.depends_on if d not in done_ids]
     if unmet:
         return f"Cannot claim '{task_id}': unmet dependencies: {', '.join(unmet)}"
 
-    task_store.update_task(project, task_id, assigned=agent_id, status=TaskStatus.IN_PROGRESS)
-    task_store.add_progress(project, task_id, agent_id, "Claimed task")
+    stores.task.update_task(project, task_id, assigned=agent_id, status=TaskStatus.IN_PROGRESS)
+    stores.task.add_progress(project, task_id, agent_id, "Claimed task")
 
     # Update agent registry
     if agent_id in _agents:
@@ -259,7 +324,10 @@ def pm_task_claim(project: str, task_id: str, agent_id: str) -> str:
 @mcp.tool()
 def pm_task_update(project: str, task_id: str, message: str, agent_id: str = "unknown") -> str:
     """Add a progress update to a task."""
-    task = task_store.add_progress(project, task_id, agent_id, message)
+    try:
+        task = stores.task.add_progress(project, task_id, agent_id, message)
+    except ValueError as e:
+        return f"Error: {e}"
     if not task:
         return f"Task '{task_id}' not found."
     return f"Updated {task_id}: {message}"
@@ -267,23 +335,31 @@ def pm_task_update(project: str, task_id: str, message: str, agent_id: str = "un
 
 @mcp.tool()
 def pm_task_complete(project: str, task_id: str, agent_id: str = "unknown") -> str:
-    """Mark a task as done. Auto-unblocks dependent tasks."""
-    task = task_store.get_task(project, task_id)
+    """Mark a task as done. Warns about unchecked acceptance criteria. Auto-unblocks dependent tasks."""
+    try:
+        task = stores.task.get_task(project, task_id)
+    except ValueError as e:
+        return f"Error: {e}"
     if not task:
         return f"Task '{task_id}' not found."
 
-    # Mark done
-    task_store.update_task(project, task_id, status=TaskStatus.DONE)
-    task_store.add_progress(project, task_id, agent_id, "Completed task")
+    # Hard completion gate: warn about acceptance criteria
+    warning = ""
+    if task.acceptance_criteria:
+        warning = f" Note: {len(task.acceptance_criteria)} acceptance criteria defined — ensure they are met."
 
-    # Auto-unblock dependents
-    all_tasks = task_store.list_tasks(project)
+    # Mark done
+    stores.task.update_task(project, task_id, status=TaskStatus.DONE)
+    stores.task.add_progress(project, task_id, agent_id, "Completed task")
+
+    # Auto-unblock dependents (read after write so snapshot is fresh)
+    all_tasks = stores.task.list_tasks(project)
     unblocked = resolve_completions(all_tasks, task_id)
     for uid in unblocked:
-        task_store.update_task(project, uid, status=TaskStatus.PENDING)
-        task_store.add_progress(project, uid, "system", f"Auto-unblocked: dependency {task_id} completed")
+        stores.task.update_task(project, uid, status=TaskStatus.PENDING)
+        stores.task.add_progress(project, uid, "system", f"Auto-unblocked: dependency {task_id} completed")
 
-    result = f"Completed {task_id}."
+    result = f"Completed {task_id}.{warning}"
     if unblocked:
         result += f" Unblocked: {', '.join(unblocked)}"
     return result
@@ -292,28 +368,42 @@ def pm_task_complete(project: str, task_id: str, agent_id: str = "unknown") -> s
 @mcp.tool()
 def pm_task_block(project: str, task_id: str, reason: str, agent_id: str = "unknown") -> str:
     """Mark a task as blocked with a reason."""
-    task_store.update_task(project, task_id, status=TaskStatus.BLOCKED)
-    task_store.add_progress(project, task_id, agent_id, f"Blocked: {reason}")
+    try:
+        task = stores.task.get_task(project, task_id)
+    except ValueError as e:
+        return f"Error: {e}"
+    if not task:
+        return f"Task '{task_id}' not found."
+    stores.task.update_task(project, task_id, status=TaskStatus.BLOCKED)
+    stores.task.add_progress(project, task_id, agent_id, f"Blocked: {reason}")
     return f"Blocked {task_id}: {reason}"
 
 
 @mcp.tool()
 def pm_task_handoff(project: str, task_id: str, handoff_context: str, agent_id: str = "unknown") -> str:
     """Write handoff context for the next agent picking up this task."""
-    task_store.update_task(project, task_id, handoff=handoff_context)
-    task_store.add_progress(project, task_id, agent_id, "Wrote handoff context")
+    try:
+        task = stores.task.get_task(project, task_id)
+    except ValueError as e:
+        return f"Error: {e}"
+    if not task:
+        return f"Task '{task_id}' not found."
+    stores.task.update_task(project, task_id, handoff=handoff_context)
+    stores.task.add_progress(project, task_id, agent_id, "Wrote handoff context")
     return f"Handoff context saved for {task_id}."
 
 
 @mcp.tool()
 def pm_task_next(project: str, agent_type: str | None = None, preferred_types: str | None = None) -> str:
     """Suggest the best next task to work on based on priority and dependencies."""
-    all_tasks = task_store.list_tasks(project)
+    try:
+        all_tasks = stores.task.list_tasks(project)
+    except ValueError as e:
+        return f"Error: {e}"
     type_list = preferred_types.split(",") if preferred_types else None
     task = suggest_next_task(all_tasks, agent_type=agent_type, preferred_types=type_list)
 
     if not task:
-        # Check if there are blocked or in-progress tasks
         in_progress = [t for t in all_tasks if t.status == TaskStatus.IN_PROGRESS]
         blocked = [t for t in all_tasks if t.status == TaskStatus.BLOCKED]
         if in_progress:
@@ -337,8 +427,11 @@ def pm_task_next(project: str, agent_type: str | None = None, preferred_types: s
 
 @mcp.tool()
 def pm_memory_read(scope: str = "project") -> str:
-    """Read a memory scope (project, decisions, or patterns)."""
-    content = memory_store.read(scope)
+    """Read a memory scope. Valid scopes: project, decisions, patterns."""
+    try:
+        content = stores.memory.read(scope)
+    except ValueError as e:
+        return f"Error: {e}"
     if not content:
         return f"Memory scope '{scope}' is empty."
     return f"# Memory: {scope}\n\n{content}"
@@ -346,22 +439,28 @@ def pm_memory_read(scope: str = "project") -> str:
 
 @mcp.tool()
 def pm_memory_write(scope: str, content: str) -> str:
-    """Write/overwrite a memory scope."""
-    memory_store.write(scope, content)
+    """Write/overwrite a memory scope. Valid scopes: project, decisions, patterns."""
+    try:
+        stores.memory.write(scope, content)
+    except ValueError as e:
+        return f"Error: {e}"
     return f"Memory '{scope}' updated."
 
 
 @mcp.tool()
 def pm_memory_append(scope: str, entry: str, author: str = "unknown") -> str:
-    """Append an entry to a memory scope."""
-    memory_store.append(scope, entry, author)
+    """Append an entry to a memory scope. Valid scopes: project, decisions, patterns."""
+    try:
+        stores.memory.append(scope, entry, author)
+    except ValueError as e:
+        return f"Error: {e}"
     return f"Appended to memory '{scope}'."
 
 
 @mcp.tool()
 def pm_memory_search(query: str) -> str:
     """Search across all memory scopes for matching content."""
-    results = memory_store.search(query)
+    results = stores.memory.search(query)
     if not results:
         return f"No matches found for '{query}'."
 
@@ -418,13 +517,47 @@ def pm_agent_list() -> str:
     return "\n".join(lines)
 
 
+@mcp.tool()
+def pm_agent_suggest(project: str, task_id: str) -> str:
+    """Suggest which agent/model category should handle a task based on its type."""
+    try:
+        task = stores.task.get_task(project, task_id)
+    except ValueError as e:
+        return f"Error: {e}"
+    if not task:
+        return f"Task '{task_id}' not found."
+
+    routing = {
+        "dev": ("code-complex", "Claude Opus / GPT-5.4 for architecture; Claude Sonnet for simple fixes"),
+        "docs": ("docs", "Claude Sonnet / Gemini Flash for documentation"),
+        "email": ("email", "Fast model for email drafts"),
+        "planning": ("planning", "Claude Opus in plan mode for specs and architecture"),
+        "research": ("research", "Agent with web search access"),
+        "review": ("review", "Use a DIFFERENT model than the one that wrote the code"),
+        "personal": ("personal", "Any available agent"),
+        "ops": ("code-complex", "Claude Opus for infrastructure and ops tasks"),
+    }
+
+    task_type = task.type.value if hasattr(task.type, "value") else str(task.type)
+    category, suggestion = routing.get(task_type, ("unspecified", "Any capable agent"))
+
+    return (
+        f"Task: {task.id} ({task.title})\n"
+        f"Type: {task_type} → Category: {category}\n"
+        f"Suggestion: {suggestion}"
+    )
+
+
 # ─── Utility ───
 
 
 @mcp.tool()
 def pm_check_deps(project: str) -> str:
     """Check for dependency cycles and show dependency graph."""
-    all_tasks = task_store.list_tasks(project)
+    try:
+        all_tasks = stores.task.list_tasks(project)
+    except ValueError as e:
+        return f"Error: {e}"
     cycles = detect_cycles(all_tasks)
 
     lines = [f"Dependency check for '{project}':"]
@@ -436,9 +569,9 @@ def pm_check_deps(project: str) -> str:
         lines.append(f"  - {t.id}: {t.title}")
 
     if cycles:
-        lines.append(f"\n⚠ CYCLES DETECTED ({len(cycles)}):")
+        lines.append(f"\nCYCLES DETECTED ({len(cycles)}):")
         for cycle in cycles:
-            lines.append(f"  {' → '.join(cycle)}")
+            lines.append(f"  {' -> '.join(cycle)}")
     else:
         lines.append("No dependency cycles found.")
 

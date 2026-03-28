@@ -127,7 +127,14 @@ def task_list(ctx: click.Context, project: str, status: str | None) -> None:
     """List tasks in a project."""
     root = ctx.obj["root"]
     store = TaskStore(root)
-    status_enum = TaskStatus(status) if status else None
+    status_enum = None
+    if status:
+        try:
+            status_enum = TaskStatus(status)
+        except ValueError:
+            valid = ", ".join(s.value for s in TaskStatus)
+            click.echo(f"Invalid status '{status}'. Valid: {valid}", err=True)
+            return
     tasks = store.list_tasks(project, status=status_enum)
 
     for t in tasks:

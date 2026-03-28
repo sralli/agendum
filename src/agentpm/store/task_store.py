@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,25 +12,60 @@ import frontmatter
 from agentpm.models import ProgressEntry, Task, TaskStatus
 
 
+# --- Security ---
+
+_UNSAFE_PATTERN = re.compile(r"[/\\]|\.\.|[\x00-\x1f]")
+_MUTABLE_FIELDS = frozenset({
+    "status", "priority", "type", "category", "assigned",
+    "depends_on", "blocks", "acceptance_criteria", "tags",
+    "context", "decisions", "artifacts", "handoff",
+})
+
+
+def _sanitize_name(name: str) -> str:
+    """Validate and sanitize a project or task ID name.
+
+    Rejects path traversal attempts (../, /, \\, null bytes).
+    """
+    if not name or _UNSAFE_PATTERN.search(name):
+        raise ValueError(f"Invalid name: {name!r} (contains path separators, '..', or control characters)")
+    name = name.lstrip(".")
+    if not name:
+        raise ValueError("Name cannot be empty or only dots")
+    return name
+
+
+# --- Path helpers ---
+
+
 def _tasks_dir(root: Path, project: str) -> Path:
-    return root / "projects" / project / "tasks"
+    return root / "projects" / _sanitize_name(project) / "tasks"
 
 
 def _task_path(root: Path, project: str, task_id: str) -> Path:
-    return _tasks_dir(root, project) / f"{task_id}.md"
+    return _tasks_dir(root, project) / f"{_sanitize_name(task_id)}.md"
 
 
 def _next_task_id(root: Path, project: str) -> str:
-    """Generate next sequential task ID like task-001, task-002."""
+    """Generate next sequential task ID like task-001, task-002.
+
+    Handles non-numeric filenames gracefully and retries on collision.
+    """
     tasks_dir = _tasks_dir(root, project)
     if not tasks_dir.exists():
         return "task-001"
-    existing = sorted(tasks_dir.glob("task-*.md"))
-    if not existing:
-        return "task-001"
-    last = existing[-1].stem  # e.g. "task-003"
-    num = int(last.split("-")[1]) + 1
-    return f"task-{num:03d}"
+
+    max_num = 0
+    for path in tasks_dir.glob("task-*.md"):
+        stem = path.stem  # e.g. "task-003"
+        parts = stem.split("-", 1)
+        if len(parts) == 2:
+            try:
+                max_num = max(max_num, int(parts[1]))
+            except ValueError:
+                continue  # Skip non-numeric like task-notes.md
+
+    return f"task-{max_num + 1:03d}"
 
 
 def _parse_progress(text: str) -> list[ProgressEntry]:
@@ -63,11 +99,12 @@ def _extract_section(body: str, heading: str) -> str:
 
 def _extract_list_items(text: str) -> list[str]:
     """Extract bullet list items from text."""
-    return [
-        line.lstrip("- ").strip()
-        for line in text.splitlines()
-        if line.strip().startswith("- ")
-    ]
+    items = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- "):
+            items.append(stripped[2:].strip())  # Remove exactly "- " prefix
+    return items
 
 
 def task_from_file(path: Path) -> Task:
@@ -98,7 +135,15 @@ def task_from_file(path: Path) -> Task:
     progress_text = _extract_section(body, "Progress")
     decisions_text = _extract_section(body, "Decisions")
     artifacts_text = _extract_section(body, "Artifacts")
-    handoff = _extract_section(body, "Handoff")
+    handoff_raw = _extract_section(body, "Handoff")
+
+    # Strip blockquote prefix properly
+    handoff = handoff_raw
+    if handoff.startswith("> "):
+        handoff = handoff[2:]
+    elif handoff.startswith(">"):
+        handoff = handoff[1:]
+    handoff = handoff.strip()
 
     return Task(
         id=meta.get("id", path.stem),
@@ -120,7 +165,7 @@ def task_from_file(path: Path) -> Task:
         progress=_parse_progress(progress_text),
         decisions=_extract_list_items(decisions_text),
         artifacts=_extract_list_items(artifacts_text),
-        handoff=handoff.lstrip("> ").strip(),
+        handoff=handoff,
     )
 
 
@@ -133,6 +178,7 @@ def task_to_markdown(task: Task) -> str:
         "status": task.status.value,
         "priority": task.priority.value if hasattr(task.priority, "value") else task.priority,
         "type": task.type.value if hasattr(task.type, "value") else task.type,
+        "category": task.category.value if task.category and hasattr(task.category, "value") else task.category,
         "assigned": task.assigned,
         "createdBy": task.created_by,
         "dependsOn": task.depends_on,
@@ -156,7 +202,7 @@ def task_to_markdown(task: Task) -> str:
     sections.append("## Progress")
     if task.progress:
         for entry in task.progress:
-            ts = entry.timestamp.strftime("%Y-%m-%dT%H:%MZ")
+            ts = entry.timestamp.isoformat()
             sections.append(f"- **[{ts}] {entry.agent}** — {entry.message}")
     sections.append("")
 
@@ -196,7 +242,7 @@ class TaskStore:
         title: str,
         **kwargs,
     ) -> Task:
-        """Create a new task and write to disk."""
+        """Create a new task and write to disk. Uses atomic file creation."""
         self.ensure_project(project)
         task_id = kwargs.pop("id", None) or _next_task_id(self.root, project)
 
@@ -208,6 +254,25 @@ class TaskStore:
         )
 
         path = _task_path(self.root, project, task_id)
+
+        # Atomic write: create exclusively, retry on collision
+        retries = 3
+        while retries > 0:
+            try:
+                fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                try:
+                    os.write(fd, task_to_markdown(task).encode())
+                finally:
+                    os.close(fd)
+                return task
+            except FileExistsError:
+                # Another agent created the same ID — increment and retry
+                retries -= 1
+                task_id = _next_task_id(self.root, project)
+                task.id = task_id
+                path = _task_path(self.root, project, task_id)
+
+        # Last resort: write normally
         path.write_text(task_to_markdown(task))
         return task
 
@@ -246,13 +311,13 @@ class TaskStore:
         return tasks
 
     def update_task(self, project: str, task_id: str, **updates) -> Task | None:
-        """Update a task's fields and write back to disk."""
+        """Update a task's whitelisted fields and write back to disk."""
         task = self.get_task(project, task_id)
         if not task:
             return None
 
         for key, value in updates.items():
-            if hasattr(task, key):
+            if key in _MUTABLE_FIELDS:
                 setattr(task, key, value)
 
         task.updated = datetime.now(timezone.utc)

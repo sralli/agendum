@@ -7,6 +7,7 @@ from pathlib import Path
 import yaml
 
 from agentpm.models import BoardConfig, Project
+from agentpm.store.task_store import _sanitize_name
 
 
 class ProjectStore:
@@ -43,6 +44,7 @@ class ProjectStore:
 
     def create_project(self, name: str, description: str = "") -> Project:
         """Create a new project with directory structure."""
+        name = _sanitize_name(name)
         project_dir = self.root / "projects" / name
         project_dir.mkdir(parents=True, exist_ok=True)
         (project_dir / "tasks").mkdir(exist_ok=True)
@@ -68,6 +70,7 @@ class ProjectStore:
         return project
 
     def get_project(self, name: str) -> Project | None:
+        name = _sanitize_name(name)
         project_dir = self.root / "projects" / name
         if not project_dir.exists():
             return None
@@ -85,12 +88,18 @@ class ProjectStore:
         return Project(name=name, spec=spec, plan=plan)
 
     def update_spec(self, project: str, content: str) -> None:
-        path = self.root / "projects" / project / "spec.md"
-        path.write_text(content)
+        project = _sanitize_name(project)
+        project_dir = self.root / "projects" / project
+        if not project_dir.exists():
+            raise FileNotFoundError(f"Project '{project}' does not exist")
+        (project_dir / "spec.md").write_text(content)
 
     def update_plan(self, project: str, content: str) -> None:
-        path = self.root / "projects" / project / "plan.md"
-        path.write_text(content)
+        project = _sanitize_name(project)
+        project_dir = self.root / "projects" / project
+        if not project_dir.exists():
+            raise FileNotFoundError(f"Project '{project}' does not exist")
+        (project_dir / "plan.md").write_text(content)
 
     def list_projects(self) -> list[str]:
         projects_dir = self.root / "projects"

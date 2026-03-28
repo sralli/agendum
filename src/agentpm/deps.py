@@ -39,36 +39,56 @@ def resolve_completions(tasks: list[Task], completed_id: str) -> list[str]:
 
 
 def detect_cycles(tasks: list[Task]) -> list[list[str]]:
-    """Detect dependency cycles. Returns list of cycles found."""
+    """Detect dependency cycles using iterative DFS. Safe for large graphs."""
     graph: dict[str, list[str]] = {}
     for task in tasks:
-        graph[task.id] = task.depends_on
+        graph[task.id] = list(task.depends_on)
 
-    visited: set[str] = set()
-    in_stack: set[str] = set()
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color: dict[str, int] = {node: WHITE for node in graph}
+    parent: dict[str, str | None] = {node: None for node in graph}
     cycles: list[list[str]] = []
+    seen_cycles: set[tuple[str, ...]] = set()
 
-    def dfs(node: str, path: list[str]) -> None:
-        if node in in_stack:
-            cycle_start = path.index(node)
-            cycles.append(path[cycle_start:] + [node])
-            return
-        if node in visited:
-            return
+    for start in graph:
+        if color[start] != WHITE:
+            continue
 
-        visited.add(node)
-        in_stack.add(node)
-        path.append(node)
+        stack: list[tuple[str, int]] = [(start, 0)]
+        color[start] = GRAY
 
-        for dep in graph.get(node, []):
-            dfs(dep, path)
+        while stack:
+            node, dep_idx = stack[-1]
+            deps = graph.get(node, [])
 
-        path.pop()
-        in_stack.remove(node)
+            if dep_idx < len(deps):
+                stack[-1] = (node, dep_idx + 1)
+                dep = deps[dep_idx]
 
-    for task_id in graph:
-        if task_id not in visited:
-            dfs(task_id, [])
+                if dep not in color:
+                    continue  # dep references a non-existent task
+
+                if color[dep] == GRAY:
+                    # Found a cycle — trace back
+                    cycle = [dep]
+                    for sn, _ in reversed(stack):
+                        cycle.append(sn)
+                        if sn == dep:
+                            break
+                    cycle.reverse()
+                    # Deduplicate by normalizing cycle rotation
+                    min_idx = cycle.index(min(cycle[:-1]))
+                    normalized = tuple(cycle[min_idx:] + cycle[1:min_idx + 1])
+                    if normalized not in seen_cycles:
+                        seen_cycles.add(normalized)
+                        cycles.append(list(cycle))
+                elif color[dep] == WHITE:
+                    color[dep] = GRAY
+                    parent[dep] = node
+                    stack.append((dep, 0))
+            else:
+                color[node] = BLACK
+                stack.pop()
 
     return cycles
 

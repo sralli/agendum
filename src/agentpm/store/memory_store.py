@@ -15,10 +15,18 @@ class MemoryStore:
         self.root = root
         self.memory_dir = root / "memory"
 
+    def _validate_scope(self, scope: str) -> None:
+        """Validate scope against allowlist to prevent path traversal."""
+        if scope not in self.SCOPES:
+            raise ValueError(
+                f"Invalid memory scope: {scope!r}. Must be one of: {', '.join(self.SCOPES)}"
+            )
+
     def ensure_dir(self) -> None:
         self.memory_dir.mkdir(parents=True, exist_ok=True)
 
     def _scope_path(self, scope: str) -> Path:
+        self._validate_scope(scope)
         return self.memory_dir / f"{scope}.md"
 
     def read(self, scope: str) -> str:
@@ -71,4 +79,5 @@ class MemoryStore:
             return []
         return [
             p.stem for p in self.memory_dir.glob("*.md")
+            if p.stem in self.SCOPES
         ]
