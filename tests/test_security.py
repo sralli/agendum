@@ -7,7 +7,8 @@ import pytest
 
 from agentpm.store.memory_store import MemoryStore
 from agentpm.store.project_store import ProjectStore
-from agentpm.store.task_store import TaskStore, _sanitize_name
+from agentpm.store import sanitize_name
+from agentpm.store.task_store import TaskStore
 
 
 def _tmp_root():
@@ -16,36 +17,36 @@ def _tmp_root():
 
 class TestSanitizeName:
     def test_valid_names(self):
-        assert _sanitize_name("my-project") == "my-project"
-        assert _sanitize_name("task-001") == "task-001"
-        assert _sanitize_name("webapp_v2") == "webapp_v2"
+        assert sanitize_name("my-project") == "my-project"
+        assert sanitize_name("task-001") == "task-001"
+        assert sanitize_name("webapp_v2") == "webapp_v2"
 
     def test_rejects_path_traversal(self):
         with pytest.raises(ValueError):
-            _sanitize_name("../../etc")
+            sanitize_name("../../etc")
 
     def test_rejects_forward_slash(self):
         with pytest.raises(ValueError):
-            _sanitize_name("path/to/evil")
+            sanitize_name("path/to/evil")
 
     def test_rejects_backslash(self):
         with pytest.raises(ValueError):
-            _sanitize_name("path\\to\\evil")
+            sanitize_name("path\\to\\evil")
 
     def test_rejects_null_byte(self):
         with pytest.raises(ValueError):
-            _sanitize_name("evil\x00name")
+            sanitize_name("evil\x00name")
 
     def test_rejects_empty(self):
         with pytest.raises(ValueError):
-            _sanitize_name("")
+            sanitize_name("")
 
     def test_strips_leading_dot(self):
-        assert _sanitize_name(".hidden") == "hidden"
+        assert sanitize_name(".hidden") == "hidden"
 
     def test_rejects_only_dots(self):
         with pytest.raises(ValueError):
-            _sanitize_name("...")
+            sanitize_name("...")
 
 
 class TestTaskStorePathTraversal:

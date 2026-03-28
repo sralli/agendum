@@ -1,6 +1,6 @@
 """Tests for dependency resolution engine."""
 
-from agentpm.deps import (
+from agentpm.task_graph import (
     detect_cycles,
     find_unblocked_tasks,
     resolve_completions,

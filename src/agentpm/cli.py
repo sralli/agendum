@@ -2,20 +2,13 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import click
 
-from agentpm.deps import suggest_next_task
+from agentpm.config import resolve_root
+from agentpm.task_graph import suggest_next_task
 from agentpm.models import TaskStatus
 from agentpm.store.project_store import ProjectStore
 from agentpm.store.task_store import TaskStore
-
-
-def _get_root(home: bool = False) -> Path:
-    if home:
-        return Path.home() / ".agentpm"
-    return Path.cwd() / ".agentpm"
 
 
 @click.group()
@@ -24,7 +17,7 @@ def _get_root(home: bool = False) -> Path:
 def cli(ctx: click.Context, home: bool) -> None:
     """agentpm — Universal project management for AI agents."""
     ctx.ensure_object(dict)
-    ctx.obj["root"] = _get_root(home)
+    ctx.obj["root"] = resolve_root(home)
 
 
 @cli.command()

@@ -94,11 +94,14 @@ class TestTaskStore:
         assert store.get_task("demo", "task-001") is None
         assert not store.delete_task("demo", "task-001")
 
-    def test_list_projects(self):
-        store = TaskStore(_tmp_root())
+    def test_multiple_projects(self):
+        root = _tmp_root()
+        store = TaskStore(root)
         store.create_task("alpha", "A")
         store.create_task("beta", "B")
-        projects = store.list_projects()
+        # Verify both project directories were created
+        projects_dir = root / "projects"
+        projects = sorted(d.name for d in projects_dir.iterdir() if d.is_dir())
         assert "alpha" in projects
         assert "beta" in projects
 

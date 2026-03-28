@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-from agentpm.deps import (
+from agentpm.config import resolve_root
+from agentpm.task_graph import (
     detect_cycles,
     find_unblocked_tasks,
     resolve_completions,
@@ -19,17 +19,6 @@ from agentpm.models import Agent, TaskStatus
 from agentpm.store.memory_store import MemoryStore
 from agentpm.store.project_store import ProjectStore
 from agentpm.store.task_store import TaskStore
-
-
-# --- Lazy store initialization (C3 fix) ---
-
-def _resolve_root() -> Path:
-    root_env = os.environ.get("AGENTPM_ROOT")
-    if root_env:
-        return Path(root_env)
-    if os.environ.get("AGENTPM_HOME"):
-        return Path.home() / ".agentpm"
-    return Path.cwd() / ".agentpm"
 
 
 class _Stores:
@@ -44,7 +33,7 @@ class _Stores:
     @property
     def root(self) -> Path:
         if self._root is None:
-            self._root = _resolve_root()
+            self._root = resolve_root()
         return self._root
 
     @property
