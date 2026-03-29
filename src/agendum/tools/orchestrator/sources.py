@@ -5,6 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from agendum.models import ContextPacket, Task, TaskStatus
+from agendum.store.memory_store import MemoryStore
+from agendum.store.project_store import ProjectStore
+from agendum.store.task_store import TaskStore
 
 
 class ProjectRulesSource:
@@ -26,7 +29,8 @@ class ProjectRulesSource:
         for filename in ("CLAUDE.md", "AGENTS.md"):
             path = git_root / filename
             if path.exists():
-                content = path.read_text(errors="replace")
+                with path.open(errors="replace") as f:
+                    content = f.read(self._max_chars)
                 source_path = str(path)
                 break
 
@@ -50,7 +54,7 @@ class MemorySource:
 
     name = "memory"
 
-    def __init__(self, memory_store):
+    def __init__(self, memory_store: MemoryStore):
         self._store = memory_store
 
     def enrich(self, packet: ContextPacket, task: Task, project: str) -> ContextPacket:
@@ -83,7 +87,7 @@ class HandoffSource:
 
     name = "handoffs"
 
-    def __init__(self, task_store):
+    def __init__(self, task_store: TaskStore):
         self._store = task_store
 
     def enrich(self, packet: ContextPacket, task: Task, project: str) -> ContextPacket:
@@ -153,7 +157,7 @@ class ExternalReferencesSource:
 
     name = "external_references"
 
-    def __init__(self, project_store):
+    def __init__(self, project_store: ProjectStore):
         self._store = project_store
 
     def enrich(self, packet: ContextPacket, task: Task, project: str) -> ContextPacket:
@@ -168,9 +172,14 @@ class ExternalReferencesSource:
         return packet.model_copy(update={"pointers": pointers})
 
 
-def _find_git_root(start: Path) -> Path | None:
-    """Walk up from start to find the nearest .git/ directory."""
-    for parent in [start] + list(start.parents):
+def _find_git_root(start: Path, max_depth: int = 10) -> Path | None:
+    """Walk up from start to find the nearest .git/ directory.
+
+    Stops after max_depth levels to avoid traversing to filesystem root.
+    """
+    for i, parent in enumerate([start] + list(start.parents)):
+        if i >= max_depth:
+            break
         if (parent / ".git").exists():
             return parent
     return None

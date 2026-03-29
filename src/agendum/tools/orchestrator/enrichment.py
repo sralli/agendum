@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from typing import Protocol, runtime_checkable
 
 from agendum.models import ContextPacket, Task
@@ -55,7 +56,10 @@ class ContextEnricher:
         for source in self._sources:
             if disabled_sources and source.name in disabled_sources:
                 continue
-            packet = source.enrich(packet, task, project)
+            try:
+                packet = source.enrich(packet, task, project)
+            except Exception:
+                print(f"agendum: enrichment source '{source.name}' failed, skipping", file=sys.stderr)
 
         return self._apply_budget(packet, max_context_chars)
 
@@ -102,5 +106,6 @@ class _BudgetAllocator:
             return content
 
         truncated = content[:limit].rsplit("\n", 1)[0]  # truncate at last newline
-        self._remaining -= len(truncated)
-        return truncated + f"\n... ({field_name} truncated)"
+        suffix = f"\n... ({field_name} truncated)"
+        self._remaining -= len(truncated) + len(suffix)
+        return truncated + suffix

@@ -141,3 +141,52 @@ class TestBudgetTruncation:
         result = enricher.enrich(_packet(), _task(), "test", max_context_chars=100)
         assert result.project_rules == ""
         assert result.memory_context == ""
+
+    def test_truncation_suffix_deducted_from_budget(self):
+        """Budget accounts for the '... (field truncated)' suffix."""
+        enricher = ContextEnricher()
+        enricher.register(_StubSource("rules", "project_rules", "x" * 5000))
+        result = enricher.enrich(_packet(), _task(), "test", max_context_chars=3100)
+        # Total including suffix must not wildly exceed budget
+        assert len(result.project_rules) <= 3100
+
+    def test_truncation_no_newlines(self):
+        """Truncation of content with no newlines truncates at limit."""
+        enricher = ContextEnricher()
+        enricher.register(_StubSource("rules", "project_rules", "a" * 5000))
+        result = enricher.enrich(_packet(), _task(), "test", max_context_chars=8000)
+        assert "truncated" in result.project_rules
+        # Should be around 3000 chars + suffix, not the full 5000
+        assert len(result.project_rules) < 3200
+
+
+class TestSourceExceptionHandling:
+    def test_failing_source_skipped(self):
+        """A source that raises continues to next source."""
+
+        class _FailingSource:
+            name = "failing"
+
+            def enrich(self, packet, task, project):
+                raise RuntimeError("boom")
+
+        enricher = ContextEnricher()
+        enricher.register(_FailingSource())
+        enricher.register(_StubSource("rules", "project_rules", "safe content"))
+        result = enricher.enrich(_packet(), _task(), "test")
+        assert result.project_rules == "safe content"
+
+    def test_all_sources_fail_gracefully(self):
+        """If all sources fail, original packet is returned."""
+
+        class _FailingSource:
+            name = "failing"
+
+            def enrich(self, packet, task, project):
+                raise ValueError("bad")
+
+        enricher = ContextEnricher()
+        enricher.register(_FailingSource())
+        result = enricher.enrich(_packet(), _task(), "test")
+        assert result.project_rules == ""
+        assert result.memory_context == ""

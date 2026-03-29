@@ -118,6 +118,9 @@ def register(mcp, stores, agents, enricher=None):
                     f"Call pm_orchestrate_approve to continue."
                 )
 
+        # Load policy once for the entire dispatch (not per-task)
+        policy = stores.project.get_policy(project) if enricher else None
+
         # Build dispatch instructions
         lines = [
             f"# Plan {plan_id} — Level {current_level.level}",
@@ -143,8 +146,7 @@ def register(mcp, stores, agents, enricher=None):
                 continue
 
             # Enrich with live context if enricher is available
-            if enricher:
-                policy = stores.project.get_policy(project)
+            if enricher and policy:
                 packet = enricher.enrich(
                     packet,
                     task,

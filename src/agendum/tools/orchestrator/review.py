@@ -98,13 +98,19 @@ def register(mcp, stores, agents):
                 f"Review FAILED ({stage}){issue_str}",
             )
 
-            # Record review cycle in trace
-            traces = stores.trace.list_traces(project, task_id=task_id)
-            if traces:
-                latest = traces[-1]
-                latest.review_cycles += 1
-                latest.review_issues.extend(issues_list)
-                stores.trace.write_trace(latest)
+            # Record review failure as a new trace (append-only invariant)
+            from agendum.models import ExecutionTrace, TaskCompletionStatus
+
+            review_trace = ExecutionTrace(
+                task_id=task_id,
+                project=project,
+                agent_id=reviewer_agent_id,
+                completion_status=TaskCompletionStatus.BLOCKED,
+                block_reason=f"Review failed ({stage}): {', '.join(issues_list)}",
+                review_cycles=1,
+                review_issues=issues_list,
+            )
+            stores.trace.write_trace(review_trace)
 
             issue_summary = ", ".join(issues_list) or "none specified"
             return f"Review failed ({stage}): {task_id} back to in_progress. Issues: {issue_summary}"

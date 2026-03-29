@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import os
 from datetime import UTC, datetime
 from pathlib import Path
 
 from agendum.models import ProgressEntry, Task, TaskStatus
 from agendum.store import sanitize_name
-from agendum.store.locking import atomic_write, get_lock
+from agendum.store.locking import atomic_create, atomic_write, get_lock, next_sequential_id
 from agendum.store.task_format import task_from_file, task_to_markdown
 
 _MUTABLE_FIELDS = frozenset(
@@ -45,20 +44,7 @@ def _task_path(root: Path, project: str, task_id: str) -> Path:
 
 def _next_task_id(root: Path, project: str) -> str:
     """Generate next sequential task ID like task-001, task-002."""
-    tasks_dir = _tasks_dir(root, project)
-    if not tasks_dir.exists():
-        return "task-001"
-
-    max_num = 0
-    for path in tasks_dir.glob("task-*.md"):
-        parts = path.stem.split("-", 1)
-        if len(parts) == 2:
-            try:
-                max_num = max(max_num, int(parts[1]))
-            except ValueError:
-                continue
-
-    return f"task-{max_num + 1:03d}"
+    return next_sequential_id(_tasks_dir(root, project), "task", "md")
 
 
 class TaskStore:
@@ -78,14 +64,10 @@ class TaskStore:
         task = Task(id=task_id, project=project, title=title, **kwargs)
         path = _task_path(self.root, project, task_id)
 
-        # Atomic write: O_CREAT|O_EXCL fails if file exists, retry with new ID
+        # Atomic creation: fails if file exists, retry with new ID
         for _attempt in range(20):
             try:
-                fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-                try:
-                    os.write(fd, task_to_markdown(task).encode())
-                finally:
-                    os.close(fd)
+                atomic_create(path, task_to_markdown(task))
                 return task
             except FileExistsError:
                 task_id = _next_task_id(self.root, project)

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -10,7 +9,7 @@ import yaml
 
 from agendum.models import ExecutionPlan
 from agendum.store import sanitize_name
-from agendum.store.locking import atomic_write, get_lock
+from agendum.store.locking import atomic_create, atomic_write, get_lock, next_sequential_id
 
 
 class PlanStore:
@@ -27,20 +26,7 @@ class PlanStore:
 
     def _next_plan_id(self, project: str) -> str:
         """Generate next sequential plan ID like plan-001, plan-002."""
-        plans_dir = self._plans_dir(project)
-        if not plans_dir.exists():
-            return "plan-001"
-
-        max_num = 0
-        for path in plans_dir.glob("plan-*.yaml"):
-            parts = path.stem.split("-", 1)
-            if len(parts) == 2:
-                try:
-                    max_num = max(max_num, int(parts[1]))
-                except ValueError:
-                    continue
-
-        return f"plan-{max_num + 1:03d}"
+        return next_sequential_id(self._plans_dir(project), "plan", "yaml")
 
     def create_plan(self, plan: ExecutionPlan) -> ExecutionPlan:
         """Create a new plan and write to disk."""
@@ -52,14 +38,10 @@ class PlanStore:
 
         path = self._plan_path(plan.project, plan.id)
 
-        # Atomic creation
+        # Atomic creation — fails if file already exists
         data = plan.model_dump(mode="json", exclude_none=True)
         try:
-            fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            try:
-                os.write(fd, yaml.dump(data, default_flow_style=False, sort_keys=False).encode())
-            finally:
-                os.close(fd)
+            atomic_create(path, yaml.dump(data, default_flow_style=False, sort_keys=False))
         except FileExistsError:
             raise ValueError(f"Plan '{plan.id}' already exists in project '{plan.project}'")
 
