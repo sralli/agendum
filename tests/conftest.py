@@ -9,8 +9,8 @@ import pytest_asyncio
 
 from mcp.server.fastmcp import FastMCP
 
-from agentpm.server import _Stores
-from agentpm.tools import agent, board, memory, project, task, utils
+from agendum.server import _Stores
+from agendum.tools import agent, board, memory, project, task, utils
 
 
 @pytest.fixture

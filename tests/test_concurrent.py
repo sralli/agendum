@@ -7,8 +7,8 @@ from threading import Lock, Thread
 
 import pytest
 
-from agentpm.store.memory_store import MemoryStore
-from agentpm.store.task_store import TaskStore
+from agendum.store.memory_store import MemoryStore
+from agendum.store.task_store import TaskStore
 
 
 def test_concurrent_add_progress_no_data_loss(tmp_path: Path) -> None:

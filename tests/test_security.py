@@ -5,10 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from agentpm.store import sanitize_name
-from agentpm.store.memory_store import MemoryStore
-from agentpm.store.project_store import ProjectStore
-from agentpm.store.task_store import TaskStore
+from agendum.store import sanitize_name
+from agendum.store.memory_store import MemoryStore
+from agendum.store.project_store import ProjectStore
+from agendum.store.task_store import TaskStore
 
 
 def _tmp_root():

@@ -1,12 +1,12 @@
-# Contributing to agentpm
+# Contributing to agendum
 
 Thanks for your interest in contributing!
 
 ## Development Setup
 
 ```bash
-git clone https://github.com/sralli/agentpm.git
-cd agentpm
+git clone https://github.com/sralli/agendum.git
+cd agendum
 uv sync          # Install all dependencies
 uv run pytest    # Run tests
 ```
@@ -29,8 +29,8 @@ uv run pytest    # Run tests
 
 ## Project Structure
 
-- `src/agentpm/tools/` — MCP tool modules (one per domain)
-- `src/agentpm/store/` — File I/O layer (Markdown + YAML)
-- `src/agentpm/models.py` — Pydantic data models
-- `src/agentpm/task_graph.py` — Dependency resolution
+- `src/agendum/tools/` — MCP tool modules (one per domain)
+- `src/agendum/store/` — File I/O layer (Markdown + YAML)
+- `src/agendum/models.py` — Pydantic data models
+- `src/agendum/task_graph.py` — Dependency resolution
 - `tests/` — pytest test suite

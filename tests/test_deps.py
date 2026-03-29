@@ -1,7 +1,7 @@
 """Tests for dependency resolution engine."""
 
-from agentpm.models import Task, TaskStatus
-from agentpm.task_graph import (
+from agendum.models import Task, TaskStatus
+from agendum.task_graph import (
     detect_cycles,
     find_unblocked_tasks,
     resolve_completions,

@@ -1,4 +1,4 @@
-"""agentpm MCP server — wires up stores and registers tool modules."""
+"""agendum MCP server — wires up stores and registers tool modules."""
 
 from __future__ import annotations
 
@@ -6,13 +6,13 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-from agentpm.config import resolve_root
-from agentpm.models import Agent
-from agentpm.store.agent_store import AgentStore
-from agentpm.store.memory_store import MemoryStore
-from agentpm.store.project_store import ProjectStore
-from agentpm.store.task_store import TaskStore
-from agentpm.tools import agent, board, memory, project, task, utils
+from agendum.config import resolve_root
+from agendum.models import Agent
+from agendum.store.agent_store import AgentStore
+from agendum.store.memory_store import MemoryStore
+from agendum.store.project_store import ProjectStore
+from agendum.store.task_store import TaskStore
+from agendum.tools import agent, board, memory, project, task, utils
 
 # --- Lazy store initialization ---
 
@@ -66,11 +66,11 @@ agents_registry: dict[str, Agent] = {}
 # --- MCP Server ---
 
 mcp = FastMCP(
-    "agentpm",
+    "agendum",
     instructions=(
-        "agentpm is a universal project management system for AI coding agents. "
+        "agendum is a universal project management system for AI coding agents. "
         "Use pm_* tools to manage projects, tasks, memory, and agent coordination. "
-        "Tasks are stored as Markdown files with YAML frontmatter in .agentpm/. "
+        "Tasks are stored as Markdown files with YAML frontmatter in .agendum/. "
         "Start with pm_board_init to initialize, then pm_project_create to create a project. "
         "Use pm_board_status to see an overview of all projects and tasks."
     ),

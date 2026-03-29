@@ -3,8 +3,8 @@
 import tempfile
 from pathlib import Path
 
-from agentpm.models import TaskStatus
-from agentpm.store.task_store import TaskStore
+from agendum.models import TaskStatus
+from agendum.store.task_store import TaskStore
 
 
 def _tmp_root():

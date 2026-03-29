@@ -1,12 +1,12 @@
-"""Agent persistence store: read/write agent records to .agentpm/agents/."""
+"""Agent persistence store: read/write agent records to .agendum/agents/."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from agentpm.models import AgentPersistenceRecord
-from agentpm.store import sanitize_name
-from agentpm.store.locking import atomic_write, get_lock
+from agendum.models import AgentPersistenceRecord
+from agendum.store import sanitize_name
+from agendum.store.locking import atomic_write, get_lock
 
 
 class AgentStore:

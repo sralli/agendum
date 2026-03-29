@@ -6,9 +6,9 @@ from pathlib import Path
 
 import yaml
 
-from agentpm.models import BoardConfig, Project
-from agentpm.store import sanitize_name
-from agentpm.store.locking import atomic_write, get_lock
+from agendum.models import BoardConfig, Project
+from agendum.store import sanitize_name
+from agendum.store.locking import atomic_write, get_lock
 
 
 class ProjectStore:
@@ -17,8 +17,8 @@ class ProjectStore:
     def __init__(self, root: Path):
         self.root = root
 
-    def init_board(self, name: str = "agentpm") -> BoardConfig:
-        """Initialize .agentpm/ directory structure."""
+    def init_board(self, name: str = "agendum") -> BoardConfig:
+        """Initialize .agendum/ directory structure."""
         self.root.mkdir(parents=True, exist_ok=True)
         (self.root / "projects").mkdir(exist_ok=True)
         (self.root / "agents").mkdir(exist_ok=True)

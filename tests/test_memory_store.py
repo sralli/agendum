@@ -3,7 +3,7 @@
 import tempfile
 from pathlib import Path
 
-from agentpm.store.memory_store import MemoryStore
+from agendum.store.memory_store import MemoryStore
 
 
 def _tmp_root():

@@ -1,11 +1,11 @@
-"""Memory store: read/write memory files in .agentpm/memory/."""
+"""Memory store: read/write memory files in .agendum/memory/."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
 
-from agentpm.store.locking import atomic_write, get_lock
+from agendum.store.locking import atomic_write, get_lock
 
 
 class MemoryStore:

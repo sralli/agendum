@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agentpm.models import Task, TaskPriority, TaskStatus
+from agendum.models import Task, TaskPriority, TaskStatus
 
 
 def find_unblocked_tasks(tasks: list[Task]) -> list[Task]:

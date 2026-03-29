@@ -21,7 +21,7 @@ def register(mcp, stores, agents):
 
     @mcp.tool()
     def pm_project_list() -> str:
-        """List all projects in this agentpm board."""
+        """List all projects in this agendum board."""
         projects = stores.project.list_projects()
         if not projects:
             return "No projects yet. Use pm_project_create to create one."

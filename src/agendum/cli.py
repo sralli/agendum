@@ -1,34 +1,34 @@
-"""agentpm CLI — human interface for project management."""
+"""agendum CLI — human interface for project management."""
 
 from __future__ import annotations
 
 import click
 
-from agentpm.config import resolve_root
-from agentpm.models import TaskStatus
-from agentpm.store.project_store import ProjectStore
-from agentpm.store.task_store import TaskStore
-from agentpm.task_graph import suggest_next_task
+from agendum.config import resolve_root
+from agendum.models import TaskStatus
+from agendum.store.project_store import ProjectStore
+from agendum.store.task_store import TaskStore
+from agendum.task_graph import suggest_next_task
 
 
 @click.group()
-@click.option("--home", is_flag=True, help="Use ~/.agentpm instead of ./.agentpm")
+@click.option("--home", is_flag=True, help="Use ~/.agendum instead of ./.agendum")
 @click.pass_context
 def cli(ctx: click.Context, home: bool) -> None:
-    """agentpm — Universal project management for AI agents."""
+    """agendum — Universal project management for AI agents."""
     ctx.ensure_object(dict)
     ctx.obj["root"] = resolve_root(home)
 
 
 @cli.command()
-@click.argument("name", default="agentpm")
+@click.argument("name", default="agendum")
 @click.pass_context
 def init(ctx: click.Context, name: str) -> None:
-    """Initialize .agentpm/ directory."""
+    """Initialize .agendum/ directory."""
     root = ctx.obj["root"]
     store = ProjectStore(root)
     store.init_board(name)
-    click.echo(f"Initialized agentpm at {root}")
+    click.echo(f"Initialized agendum at {root}")
 
 
 @cli.command()
@@ -41,7 +41,7 @@ def status(ctx: click.Context) -> None:
 
     projects = project_store.list_projects()
     if not projects:
-        click.echo("No projects. Run: agentpm init && agentpm project create <name>")
+        click.echo("No projects. Run: agendum init && agendum project create <name>")
         return
 
     for proj in projects:
@@ -161,9 +161,9 @@ def serve(ctx: click.Context) -> None:
     import os
 
     # Set root for server
-    os.environ["AGENTPM_ROOT"] = str(ctx.obj["root"])
+    os.environ["AGENDUM_ROOT"] = str(ctx.obj["root"])
 
-    from agentpm.server import mcp
+    from agendum.server import mcp
 
     mcp.run(transport="stdio")
 

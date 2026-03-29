@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from agentpm.models import Agent, AgentPersistenceRecord
+from agendum.models import Agent, AgentPersistenceRecord
 
 
 def register(mcp, stores, agents):

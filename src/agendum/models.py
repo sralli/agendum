@@ -1,4 +1,4 @@
-"""Pydantic models for agentpm."""
+"""Pydantic models for agendum."""
 
 from __future__ import annotations
 
@@ -158,7 +158,7 @@ class BoardConfig(BaseModel):
     """Board configuration stored in config.yaml."""
 
     version: str = "1"
-    name: str = "agentpm"
+    name: str = "agendum"
     projects: list[str] = Field(default_factory=list)
     default_project: str | None = None
     agent_routing: dict[str, str] = Field(default_factory=dict)

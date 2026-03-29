@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report a bug in agentpm
+description: Report a bug in agendum
 labels: [bug]
 body:
   - type: textarea
@@ -22,8 +22,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: agentpm version
-      description: Output of `agentpm --version` or `pip show agentpm`
+      label: agendum version
+      description: Output of `agendum --version` or `pip show agendum`
   - type: dropdown
     id: client
     attributes:

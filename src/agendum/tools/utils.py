@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agentpm.task_graph import detect_cycles, find_unblocked_tasks
+from agendum.task_graph import detect_cycles, find_unblocked_tasks
 
 
 def register(mcp, stores, agents):

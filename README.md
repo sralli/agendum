@@ -1,10 +1,10 @@
-<!-- mcp-name: io.github.sralli/agentpm -->
+<!-- mcp-name: io.github.sralli/agendum -->
 
-# agentpm
+# agendum
 
-[![PyPI version](https://img.shields.io/pypi/v/agentpm.svg)](https://pypi.org/project/agentpm/)
+[![PyPI version](https://img.shields.io/pypi/v/agendum.svg)](https://pypi.org/project/agendum/)
 [![Python 3.13+](https://img.shields.io/badge/python-3.13%2B-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://github.com/sralli/agentpm/actions/workflows/ci.yml/badge.svg)](https://github.com/sralli/agentpm/actions/workflows/ci.yml)
+[![Tests](https://github.com/sralli/agendum/actions/workflows/ci.yml/badge.svg)](https://github.com/sralli/agendum/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
 **Universal project management for AI coding agents.**
@@ -15,11 +15,11 @@ An MCP server that gives any AI agent (Claude Code, Cursor, OpenCode) a shared p
 
 ```bash
 # 1. Install
-pip install agentpm
-# or: uvx agentpm --help
+pip install agendum
+# or: uvx agendum --help
 
 # 2. Add to Claude Code
-claude mcp add agentpm -- uvx agentpm --home serve
+claude mcp add agendum -- uvx agendum --home serve
 
 # 3. Start managing projects
 # (in Claude Code, the pm_* tools are now available)
@@ -30,7 +30,7 @@ claude mcp add agentpm -- uvx agentpm --home serve
 ### Claude Code
 
 ```bash
-claude mcp add agentpm -- uvx agentpm --home serve
+claude mcp add agendum -- uvx agendum --home serve
 ```
 
 ### Claude Desktop
@@ -40,9 +40,9 @@ Add to your `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "agentpm": {
+    "agendum": {
       "command": "uvx",
-      "args": ["agentpm", "--home", "serve"]
+      "args": ["agendum", "--home", "serve"]
     }
   }
 }
@@ -54,9 +54,9 @@ Add to Cursor Settings > MCP Servers:
 
 ```json
 {
-  "agentpm": {
+  "agendum": {
     "command": "uvx",
-    "args": ["agentpm", "--home", "serve"]
+    "args": ["agendum", "--home", "serve"]
   }
 }
 ```
@@ -64,12 +64,12 @@ Add to Cursor Settings > MCP Servers:
 ### CLI (standalone)
 
 ```bash
-agentpm init                                    # Initialize board
-agentpm project create my-app                   # Create a project
-agentpm task create my-app "Build auth" -p high # Add tasks
-agentpm task list my-app                        # View board
-agentpm next my-app                             # What to work on next?
-agentpm status                                  # Dashboard overview
+agendum init                                    # Initialize board
+agendum project create my-app                   # Create a project
+agendum task create my-app "Build auth" -p high # Add tasks
+agendum task list my-app                        # View board
+agendum next my-app                             # What to work on next?
+agendum status                                  # Dashboard overview
 ```
 
 ## Features
@@ -100,7 +100,7 @@ agentpm status                                  # Dashboard overview
 All state is stored as human-readable Markdown files with YAML frontmatter:
 
 ```
-~/.agentpm/
+~/.agendum/
 ├── config.yaml
 ├── projects/
 │   ├── webapp/
@@ -161,7 +161,7 @@ User needs Google sign-in for the webapp.
 ## Architecture
 
 ```
-src/agentpm/
+src/agendum/
 ├── server.py           # MCP server wiring (FastMCP)
 ├── config.py           # Shared configuration
 ├── models.py           # Pydantic models
@@ -184,8 +184,8 @@ src/agentpm/
 ## Development
 
 ```bash
-git clone https://github.com/sralli/agentpm.git
-cd agentpm
+git clone https://github.com/sralli/agendum.git
+cd agendum
 uv sync
 uv run pytest tests/ -v     # 57 tests
 uv run ruff check .          # Lint

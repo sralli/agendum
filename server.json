@@ -1,13 +1,13 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.sralli/agentpm",
-  "title": "AgentPM",
+  "name": "io.github.sralli/agendum",
+  "title": "Agendum",
   "description": "Universal project management for AI coding agents — spec-driven planning, task tracking with dependencies, memory, and cross-session continuity",
   "version": "0.1.0",
   "packages": [
     {
       "registryType": "pypi",
-      "identifier": "agentpm",
+      "identifier": "agendum",
       "version": "0.1.0",
       "transport": {
         "type": "stdio"

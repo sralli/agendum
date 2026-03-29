@@ -1,5 +1,5 @@
 [project]
-name = "agentpm"
+name = "agendum"
 version = "0.1.0"
 description = "Universal project management for AI coding agents — MCP server + CLI + git-native task board"
 readme = "README.md"
@@ -27,19 +27,19 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/sralli/agentpm"
-Repository = "https://github.com/sralli/agentpm"
-Issues = "https://github.com/sralli/agentpm/issues"
+Homepage = "https://github.com/sralli/agendum"
+Repository = "https://github.com/sralli/agendum"
+Issues = "https://github.com/sralli/agendum/issues"
 
 [project.scripts]
-agentpm = "agentpm.cli:cli"
+agendum = "agendum.cli:cli"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/agentpm"]
+packages = ["src/agendum"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

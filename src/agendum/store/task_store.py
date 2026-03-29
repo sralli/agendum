@@ -10,9 +10,9 @@ from pathlib import Path
 import yaml
 import frontmatter
 
-from agentpm.models import AgentHandoffRecord, ProgressEntry, Task, TaskPriority, TaskStatus, TaskType
-from agentpm.store import sanitize_name
-from agentpm.store.locking import atomic_write, get_lock
+from agendum.models import AgentHandoffRecord, ProgressEntry, Task, TaskPriority, TaskStatus, TaskType
+from agendum.store import sanitize_name
+from agendum.store.locking import atomic_write, get_lock
 
 _MUTABLE_FIELDS = frozenset(
     {
@@ -291,7 +291,7 @@ def task_to_markdown(task: Task) -> str:
 
 
 class TaskStore:
-    """File-based task storage backed by .agentpm/ directory."""
+    """File-based task storage backed by .agendum/ directory."""
 
     def __init__(self, root: Path):
         self.root = root

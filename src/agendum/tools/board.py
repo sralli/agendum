@@ -4,21 +4,21 @@ from __future__ import annotations
 
 import json
 
-from agentpm.models import TaskStatus
+from agendum.models import TaskStatus
 
 
 def register(mcp, stores, agents):
     """Register board tools on the MCP server."""
 
     @mcp.tool()
-    def pm_board_init(name: str = "agentpm") -> str:
-        """Initialize .agentpm/ directory in the current project. Run this first.
+    def pm_board_init(name: str = "agendum") -> str:
+        """Initialize .agendum/ directory in the current project. Run this first.
 
         Creates the directory structure for projects, agents, and memory.
         Safe to re-run — will not overwrite existing data.
         """
         config = stores.project.init_board(name)
-        return f"Initialized agentpm board at {stores.root}. Config: {json.dumps(config.model_dump())}"
+        return f"Initialized agendum board at {stores.root}. Config: {json.dumps(config.model_dump())}"
 
     @mcp.tool()
     def pm_board_status() -> str:

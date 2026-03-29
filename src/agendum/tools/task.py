@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from agentpm.env_context import get_device_name, get_git_branch, get_working_dir
-from agentpm.models import AgentHandoffRecord, TaskStatus
-from agentpm.task_graph import resolve_completions, suggest_next_task
+from agendum.env_context import get_device_name, get_git_branch, get_working_dir
+from agendum.models import AgentHandoffRecord, TaskStatus
+from agendum.task_graph import resolve_completions, suggest_next_task
 
 _VALID_STATUSES = ", ".join(s.value for s in TaskStatus)
 
