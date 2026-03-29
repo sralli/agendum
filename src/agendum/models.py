@@ -221,6 +221,13 @@ class ContextPacket(BaseModel):
     constraints: list[str] = Field(default_factory=list)
     review_checklist: list[str] = Field(default_factory=list)
 
+    # Enrichment fields (populated at dispatch time, empty at plan creation)
+    project_rules: str = ""
+    memory_context: str = ""
+    dependency_outputs: str = ""
+    review_history: str = ""
+    pointers: list[str] = Field(default_factory=list)
+
 
 class ExecutionPlan(BaseModel):
     """A structured execution plan with DAG levels and context packets."""
@@ -272,6 +279,13 @@ class ExecutionTrace(BaseModel):
     task_priority: str | None = None
 
 
+class ExternalReference(BaseModel):
+    """A pointer to an external resource (Obsidian note, wiki URL, etc.)."""
+
+    name: str
+    path_or_url: str
+
+
 class ProjectPolicy(BaseModel):
     """Per-project orchestration policy."""
 
@@ -279,6 +293,9 @@ class ProjectPolicy(BaseModel):
     review_required: bool = False
     checkpoint_interval: int = 0
     max_parallel_tasks: int = 5
+    max_context_chars: int = 8000
+    disabled_sources: list[str] = Field(default_factory=list)
+    external_references: list[ExternalReference] = Field(default_factory=list)
 
 
 # Forward ref update

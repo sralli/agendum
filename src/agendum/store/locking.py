@@ -22,3 +22,35 @@ def atomic_write(path: Path, content: str, encoding: str = "utf-8") -> None:
     except Exception:
         tmp.unlink(missing_ok=True)
         raise
+
+
+def atomic_create(path: Path, content: str, encoding: str = "utf-8") -> None:
+    """Create a file atomically. Raises FileExistsError if file already exists.
+
+    Uses O_CREAT|O_EXCL for race-free creation.
+    """
+    fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    try:
+        os.write(fd, content.encode(encoding))
+    finally:
+        os.close(fd)
+
+
+def next_sequential_id(directory: Path, prefix: str, extension: str) -> str:
+    """Generate the next sequential ID like prefix-001, prefix-002.
+
+    Scans directory for files matching {prefix}-*.{extension}.
+    """
+    if not directory.exists():
+        return f"{prefix}-001"
+
+    max_num = 0
+    for path in directory.glob(f"{prefix}-*.{extension}"):
+        parts = path.stem.split("-", 1)
+        if len(parts) == 2:
+            try:
+                max_num = max(max_num, int(parts[1]))
+            except ValueError:
+                continue
+
+    return f"{prefix}-{max_num + 1:03d}"

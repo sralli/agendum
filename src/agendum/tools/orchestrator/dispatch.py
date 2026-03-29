@@ -5,8 +5,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from agendum.models import (
+    ContextPacket,
     ExecutionStatus,
     ExecutionTrace,
+    Task,
     TaskCompletionStatus,
     TaskStatus,
 )
@@ -17,7 +19,48 @@ from agendum.tools.orchestrator._helpers import (
 )
 
 
-def register(mcp, stores, agents):
+def _render_task_dispatch(packet: ContextPacket, task: Task, status: TaskStatus) -> list[str]:
+    """Render an enriched context packet as markdown lines."""
+    lines = [f"### {task.id}: {task.title} [{status.value}]"]
+
+    if packet.goal:
+        lines.append(f"**Goal:** {packet.goal}")
+    if packet.acceptance_criteria:
+        lines.append("**Acceptance Criteria:**")
+        for ac in packet.acceptance_criteria:
+            lines.append(f"  - {ac}")
+    if packet.key_files:
+        lines.append(f"**Key Files:** {', '.join(packet.key_files)}")
+    if packet.dependencies_summary and packet.dependencies_summary != "No dependencies":
+        lines.append(f"**Dependencies:**\n{packet.dependencies_summary}")
+    if packet.constraints:
+        lines.append("**Constraints:**")
+        for c in packet.constraints:
+            lines.append(f"  - {c}")
+
+    # Enrichment sections
+    if packet.project_rules:
+        lines.append("**Project Rules:**")
+        lines.append(packet.project_rules)
+    if packet.dependency_outputs:
+        lines.append("**Dependency Context:**")
+        lines.append(packet.dependency_outputs)
+    if packet.memory_context:
+        lines.append("**Memory Context:**")
+        lines.append(packet.memory_context)
+    if packet.review_history:
+        lines.append("**Prior Review Issues:**")
+        lines.append(packet.review_history)
+    if packet.pointers:
+        lines.append("**References:**")
+        for ptr in packet.pointers:
+            lines.append(f"  → {ptr}")
+
+    lines.append("")
+    return lines
+
+
+def register(mcp, stores, agents, enricher=None):
     """Register dispatch tools on the MCP server."""
 
     @mcp.tool()
@@ -75,6 +118,9 @@ def register(mcp, stores, agents):
                     f"Call pm_orchestrate_approve to continue."
                 )
 
+        # Load policy once for the entire dispatch (not per-task)
+        policy = stores.project.get_policy(project) if enricher else None
+
         # Build dispatch instructions
         lines = [
             f"# Plan {plan_id} — Level {current_level.level}",
@@ -90,24 +136,26 @@ def register(mcp, stores, agents):
                 continue
 
             task = next((t for t in all_tasks if t.id == tid), None)
-            packet = plan.context_packets.get(tid)
+            if not task:
+                continue
 
-            lines.append(f"### {tid}: {task.title if task else '?'} [{status.value}]")
-            if packet:
-                lines.append(f"**Goal:** {packet.goal}")
-                if packet.acceptance_criteria:
-                    lines.append("**Acceptance Criteria:**")
-                    for ac in packet.acceptance_criteria:
-                        lines.append(f"  - {ac}")
-                if packet.key_files:
-                    lines.append(f"**Key Files:** {', '.join(packet.key_files)}")
-                if packet.dependencies_summary and packet.dependencies_summary != "No dependencies":
-                    lines.append(f"**Dependencies:**\n{packet.dependencies_summary}")
-                if packet.constraints:
-                    lines.append("**Constraints:**")
-                    for c in packet.constraints:
-                        lines.append(f"  - {c}")
-            lines.append("")
+            packet = plan.context_packets.get(tid)
+            if not packet:
+                lines.append(f"### {tid}: {task.title} [{status.value}]")
+                lines.append("")
+                continue
+
+            # Enrich with live context if enricher is available
+            if enricher and policy:
+                packet = enricher.enrich(
+                    packet,
+                    task,
+                    project,
+                    disabled_sources=policy.disabled_sources,
+                    max_context_chars=policy.max_context_chars,
+                )
+
+            lines.extend(_render_task_dispatch(packet, task, status))
 
         return "\n".join(lines)
 
