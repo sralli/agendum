@@ -10,9 +10,11 @@ from agendum.config import resolve_root
 from agendum.models import Agent
 from agendum.store.agent_store import AgentStore
 from agendum.store.memory_store import MemoryStore
+from agendum.store.plan_store import PlanStore
 from agendum.store.project_store import ProjectStore
 from agendum.store.task_store import TaskStore
-from agendum.tools import agent, board, memory, project, task, utils
+from agendum.store.trace_store import TraceStore
+from agendum.tools import agent, board, memory, orchestrator, project, task, utils
 
 # --- Lazy store initialization ---
 
@@ -25,6 +27,8 @@ class _Stores:
         self._project: ProjectStore | None = None
         self._memory: MemoryStore | None = None
         self._agent: AgentStore | None = None
+        self._plan: PlanStore | None = None
+        self._trace: TraceStore | None = None
         self._root: Path | None = None
 
     @property
@@ -57,6 +61,18 @@ class _Stores:
             self._agent = AgentStore(self.root)
         return self._agent
 
+    @property
+    def plan(self) -> PlanStore:
+        if self._plan is None:
+            self._plan = PlanStore(self.root)
+        return self._plan
+
+    @property
+    def trace(self) -> TraceStore:
+        if self._trace is None:
+            self._trace = TraceStore(self.root)
+        return self._trace
+
 
 stores = _Stores()
 
@@ -83,3 +99,4 @@ task.register(mcp, stores, agents_registry)
 memory.register(mcp, stores, agents_registry)
 agent.register(mcp, stores, agents_registry)
 utils.register(mcp, stores, agents_registry)
+orchestrator.register(mcp, stores, agents_registry)
