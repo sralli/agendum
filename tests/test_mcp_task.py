@@ -15,6 +15,7 @@ async def _setup(mcp) -> None:
 
 # --- pm_task_create ---
 
+
 @pytest.mark.asyncio
 async def test_task_create_happy(mcp_server):
     mcp, _, _ = mcp_server
@@ -28,13 +29,13 @@ async def test_task_create_with_deps(mcp_server):
     mcp, _, _ = mcp_server
     await _setup(mcp)
     await call(mcp, "pm_task_create", project="proj", title="First")
-    result = await call(mcp, "pm_task_create", project="proj", title="Second",
-                        depends_on=["task-001"])
+    result = await call(mcp, "pm_task_create", project="proj", title="Second", depends_on=["task-001"])
     assert "task-002" in result
     assert "blocked by" in result
 
 
 # --- pm_task_list ---
+
 
 @pytest.mark.asyncio
 async def test_task_list_happy(mcp_server):
@@ -75,12 +76,12 @@ async def test_task_list_empty(mcp_server):
 
 # --- pm_task_get ---
 
+
 @pytest.mark.asyncio
 async def test_task_get_happy(mcp_server):
     mcp, _, _ = mcp_server
     await _setup(mcp)
-    await call(mcp, "pm_task_create", project="proj", title="My Task",
-               acceptance_criteria=["criterion one"])
+    await call(mcp, "pm_task_create", project="proj", title="My Task", acceptance_criteria=["criterion one"])
     result = await call(mcp, "pm_task_get", project="proj", task_id="task-001")
     assert "My Task" in result
     assert "criterion one" in result
@@ -96,13 +97,13 @@ async def test_task_get_not_found(mcp_server):
 
 # --- pm_task_claim ---
 
+
 @pytest.mark.asyncio
 async def test_task_claim_happy(mcp_server):
     mcp, _, _ = mcp_server
     await _setup(mcp)
     await call(mcp, "pm_task_create", project="proj", title="Claimable")
-    result = await call(mcp, "pm_task_claim", project="proj", task_id="task-001",
-                        agent_id="agent-x")
+    result = await call(mcp, "pm_task_claim", project="proj", task_id="task-001", agent_id="agent-x")
     assert "Claimed task-001" in result
     assert "in_progress" in result
 
@@ -111,8 +112,7 @@ async def test_task_claim_happy(mcp_server):
 async def test_task_claim_not_found(mcp_server):
     mcp, _, _ = mcp_server
     await _setup(mcp)
-    result = await call(mcp, "pm_task_claim", project="proj", task_id="task-999",
-                        agent_id="agent-x")
+    result = await call(mcp, "pm_task_claim", project="proj", task_id="task-999", agent_id="agent-x")
     assert "not found" in result
 
 
@@ -122,8 +122,7 @@ async def test_task_claim_already_in_progress(mcp_server):
     await _setup(mcp)
     await call(mcp, "pm_task_create", project="proj", title="Claimable")
     await call(mcp, "pm_task_claim", project="proj", task_id="task-001", agent_id="agent-a")
-    result = await call(mcp, "pm_task_claim", project="proj", task_id="task-001",
-                        agent_id="agent-b")
+    result = await call(mcp, "pm_task_claim", project="proj", task_id="task-001", agent_id="agent-b")
     assert "cannot claim" in result
 
 
@@ -133,20 +132,21 @@ async def test_task_claim_unmet_deps(mcp_server):
     await _setup(mcp)
     await call(mcp, "pm_task_create", project="proj", title="First")
     await call(mcp, "pm_task_create", project="proj", title="Second", depends_on=["task-001"])
-    result = await call(mcp, "pm_task_claim", project="proj", task_id="task-002",
-                        agent_id="agent-x")
+    result = await call(mcp, "pm_task_claim", project="proj", task_id="task-002", agent_id="agent-x")
     assert "unmet dependencies" in result
 
 
 # --- pm_task_progress ---
+
 
 @pytest.mark.asyncio
 async def test_task_progress_happy(mcp_server):
     mcp, _, _ = mcp_server
     await _setup(mcp)
     await call(mcp, "pm_task_create", project="proj", title="Task")
-    result = await call(mcp, "pm_task_progress", project="proj", task_id="task-001",
-                        message="did something", agent_id="agent-1")
+    result = await call(
+        mcp, "pm_task_progress", project="proj", task_id="task-001", message="did something", agent_id="agent-1"
+    )
     assert "Logged progress" in result
     assert "did something" in result
 
@@ -155,12 +155,12 @@ async def test_task_progress_happy(mcp_server):
 async def test_task_progress_not_found(mcp_server):
     mcp, _, _ = mcp_server
     await _setup(mcp)
-    result = await call(mcp, "pm_task_progress", project="proj", task_id="task-999",
-                        message="oops")
+    result = await call(mcp, "pm_task_progress", project="proj", task_id="task-999", message="oops")
     assert "not found" in result
 
 
 # --- pm_task_complete ---
+
 
 @pytest.mark.asyncio
 async def test_task_complete_happy(mcp_server):
@@ -188,8 +188,7 @@ async def test_task_complete_auto_unblocks(mcp_server):
 async def test_task_complete_with_criteria_warning(mcp_server):
     mcp, _, _ = mcp_server
     await _setup(mcp)
-    await call(mcp, "pm_task_create", project="proj", title="Task",
-               acceptance_criteria=["check this"])
+    await call(mcp, "pm_task_create", project="proj", title="Task", acceptance_criteria=["check this"])
     result = await call(mcp, "pm_task_complete", project="proj", task_id="task-001")
     assert "acceptance criteria" in result
 
@@ -204,13 +203,13 @@ async def test_task_complete_not_found(mcp_server):
 
 # --- pm_task_block ---
 
+
 @pytest.mark.asyncio
 async def test_task_block_happy(mcp_server):
     mcp, _, _ = mcp_server
     await _setup(mcp)
     await call(mcp, "pm_task_create", project="proj", title="Task")
-    result = await call(mcp, "pm_task_block", project="proj", task_id="task-001",
-                        reason="waiting on external API")
+    result = await call(mcp, "pm_task_block", project="proj", task_id="task-001", reason="waiting on external API")
     assert "Blocked task-001" in result
     assert "waiting on external API" in result
 
@@ -219,20 +218,26 @@ async def test_task_block_happy(mcp_server):
 async def test_task_block_not_found(mcp_server):
     mcp, _, _ = mcp_server
     await _setup(mcp)
-    result = await call(mcp, "pm_task_block", project="proj", task_id="task-999",
-                        reason="whatever")
+    result = await call(mcp, "pm_task_block", project="proj", task_id="task-999", reason="whatever")
     assert "not found" in result
 
 
 # --- pm_task_handoff ---
+
 
 @pytest.mark.asyncio
 async def test_task_handoff_happy(mcp_server):
     mcp, _, _ = mcp_server
     await _setup(mcp)
     await call(mcp, "pm_task_create", project="proj", title="Task")
-    result = await call(mcp, "pm_task_handoff", project="proj", task_id="task-001",
-                        handoff_context="Done X, still need Y", agent_id="agent-1")
+    result = await call(
+        mcp,
+        "pm_task_handoff",
+        project="proj",
+        task_id="task-001",
+        handoff_context="Done X, still need Y",
+        agent_id="agent-1",
+    )
     assert "Handoff context saved" in result
     # Verify it's visible in task get
     detail = await call(mcp, "pm_task_get", project="proj", task_id="task-001")
@@ -243,12 +248,12 @@ async def test_task_handoff_happy(mcp_server):
 async def test_task_handoff_not_found(mcp_server):
     mcp, _, _ = mcp_server
     await _setup(mcp)
-    result = await call(mcp, "pm_task_handoff", project="proj", task_id="task-999",
-                        handoff_context="irrelevant")
+    result = await call(mcp, "pm_task_handoff", project="proj", task_id="task-999", handoff_context="irrelevant")
     assert "not found" in result
 
 
 # --- pm_task_next ---
+
 
 @pytest.mark.asyncio
 async def test_task_next_suggests_highest_priority(mcp_server):
@@ -270,6 +275,7 @@ async def test_task_next_no_tasks(mcp_server):
 
 # --- pm_task_create error path ---
 
+
 @pytest.mark.asyncio
 async def test_task_create_invalid_project_name(mcp_server):
     """pm_task_create: project name with path traversal returns Error."""
@@ -281,6 +287,7 @@ async def test_task_create_invalid_project_name(mcp_server):
 
 # --- pm_task_next error path ---
 
+
 @pytest.mark.asyncio
 async def test_task_next_invalid_project(mcp_server):
     """pm_task_next: invalid project name returns Error."""
@@ -291,6 +298,7 @@ async def test_task_next_invalid_project(mcp_server):
 
 
 # --- pm_task_handoff structured happy path ---
+
 
 @pytest.mark.asyncio
 async def test_task_handoff_structured_happy(mcp_server):

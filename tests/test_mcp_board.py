@@ -62,6 +62,7 @@ async def test_board_status_shows_blocked(mcp_server):
 
 # --- additional coverage ---
 
+
 @pytest.mark.asyncio
 async def test_board_init_returns_config_json(mcp_server):
     """pm_board_init: result includes JSON config with the board name."""

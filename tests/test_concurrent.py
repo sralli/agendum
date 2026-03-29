@@ -5,8 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from threading import Lock, Thread
 
-import pytest
-
 from agendum.store.memory_store import MemoryStore
 from agendum.store.task_store import TaskStore
 

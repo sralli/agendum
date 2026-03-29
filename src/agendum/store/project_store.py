@@ -6,7 +6,7 @@ from pathlib import Path
 
 import yaml
 
-from agendum.models import BoardConfig, Project
+from agendum.models import BoardConfig, Project, ProjectPolicy
 from agendum.store import sanitize_name
 from agendum.store.locking import atomic_write, get_lock
 
@@ -111,3 +111,32 @@ class ProjectStore:
         if not projects_dir.exists():
             return []
         return sorted(d.name for d in projects_dir.iterdir() if d.is_dir())
+
+    def _policy_path(self, project: str) -> Path:
+        return self.root / "projects" / sanitize_name(project) / "policy.yaml"
+
+    def get_policy(self, project: str) -> ProjectPolicy:
+        """Load project policy, returning defaults if no file exists."""
+        path = self._policy_path(project)
+        if not path.exists():
+            return ProjectPolicy()
+        data = yaml.safe_load(path.read_text()) or {}
+        return ProjectPolicy.model_validate(data)
+
+    def update_policy(self, project: str, **updates) -> ProjectPolicy:
+        """Update policy fields and persist to disk."""
+        project = sanitize_name(project)
+        project_dir = self.root / "projects" / project
+        if not project_dir.exists():
+            raise FileNotFoundError(f"Project '{project}' does not exist")
+        path = self._policy_path(project)
+        with get_lock(path):
+            policy = self.get_policy(project)
+            for key, value in updates.items():
+                if hasattr(policy, key):
+                    setattr(policy, key, value)
+            atomic_write(
+                path,
+                yaml.dump(policy.model_dump(mode="json"), default_flow_style=False, sort_keys=False),
+            )
+        return policy

@@ -1,4 +1,5 @@
 """Load tests — verify performance with 200 tasks."""
+
 import time
 
 from tests.conftest import call
@@ -24,7 +25,7 @@ async def test_list_200_tasks_under_500ms(mcp_server):
     start = time.perf_counter()
     result = await call(mcp, "pm_task_list", project="load")
     elapsed = time.perf_counter() - start
-    print(f"\nlist_tasks(200): {elapsed*1000:.1f}ms")
+    print(f"\nlist_tasks(200): {elapsed * 1000:.1f}ms")
     assert elapsed < 0.5, f"list_tasks took {elapsed:.3f}s, expected <0.5s"
     assert "task-" in result
 
@@ -35,7 +36,7 @@ async def test_get_task_under_100ms(mcp_server):
     start = time.perf_counter()
     result = await call(mcp, "pm_task_get", project="load", task_id="task-100")
     elapsed = time.perf_counter() - start
-    print(f"\nget_task(task-100 of 200): {elapsed*1000:.1f}ms")
+    print(f"\nget_task(task-100 of 200): {elapsed * 1000:.1f}ms")
     assert elapsed < 0.1, f"get_task took {elapsed:.3f}s, expected <0.1s"
     assert "task-100" in result
 
@@ -46,6 +47,6 @@ async def test_list_with_status_filter_under_500ms(mcp_server):
     start = time.perf_counter()
     result = await call(mcp, "pm_task_list", project="load", status="pending")
     elapsed = time.perf_counter() - start
-    print(f"\nlist_tasks(status=pending, 200 tasks): {elapsed*1000:.1f}ms")
+    print(f"\nlist_tasks(status=pending, 200 tasks): {elapsed * 1000:.1f}ms")
     assert elapsed < 0.5, f"list_tasks with filter took {elapsed:.3f}s, expected <0.5s"
     assert "task-" in result

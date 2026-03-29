@@ -89,6 +89,7 @@ async def test_plan_update_not_found(mcp_server):
 
 # --- pm_project_create error path ---
 
+
 @pytest.mark.asyncio
 async def test_project_create_invalid_name(mcp_server):
     """pm_project_create: name with path traversal characters returns an Error."""
@@ -99,6 +100,7 @@ async def test_project_create_invalid_name(mcp_server):
 
 
 # --- pm_project_get additional ---
+
 
 @pytest.mark.asyncio
 async def test_project_get_error_invalid_name(mcp_server):
