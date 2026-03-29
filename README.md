@@ -23,7 +23,43 @@ AI coding agents are powerful but stateless. They forget what they did last sess
 - **Git-native** — All state is human-readable Markdown + YAML in a `.agendum/` directory. Diff it, commit it, review it in PRs.
 - **Beyond code** — Track dev tasks, docs, emails, personal todos, research — anything an agent (or human) needs to manage.
 
-![agendum demo](demo.gif)
+### Example: What It Looks Like in Claude Code
+
+```
+You: Create a project for our API rewrite and break it into tasks
+
+Agent: I'll set up the project board.
+  → pm_board_init()
+  → pm_project_create(name="api-rewrite", description="Migrate REST API to GraphQL")
+  → pm_task_create(project="api-rewrite", title="Schema design", priority="high")
+  → pm_task_create(project="api-rewrite", title="Resolver layer", depends_on=["task-001"])
+  → pm_task_create(project="api-rewrite", title="Auth middleware", depends_on=["task-001"])
+  → pm_task_create(project="api-rewrite", title="Integration tests", depends_on=["task-002","task-003"])
+
+Created project "api-rewrite" with 4 tasks:
+  Level 0: task-001 (Schema design)
+  Level 1: task-002 (Resolver layer) + task-003 (Auth middleware)  ← parallel
+  Level 2: task-004 (Integration tests)
+
+You: What should I work on?
+
+Agent:
+  → pm_task_next(project="api-rewrite")
+
+  Suggested: task-001 "Schema design" [high priority, no dependencies]
+
+You: Done with the schema. Here's what I decided...
+
+Agent:
+  → pm_task_handoff(project="api-rewrite", task_id="task-001",
+      completed=["GraphQL schema defined", "Types for User, Product, Order"],
+      decisions=["Using code-first with Strawberry"],
+      gotchas=["N+1 queries need DataLoader"])
+  → pm_task_complete(project="api-rewrite", task_id="task-001")
+
+  Completed task-001. Unblocked: task-002, task-003
+  Next session or agent will see your decisions and gotchas.
+```
 
 ## Quick Start
 

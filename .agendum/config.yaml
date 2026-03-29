@@ -1,0 +1,6 @@
+version: '1'
+name: mytest
+projects:
+- demo
+default_project: demo
+agent_routing: {}
