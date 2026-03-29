@@ -10,7 +10,9 @@ import pytest_asyncio
 from mcp.server.fastmcp import FastMCP
 
 from agendum.server import _Stores
-from agendum.tools import agent, board, memory, project, task, utils
+from agendum.store.plan_store import PlanStore
+from agendum.store.trace_store import TraceStore
+from agendum.tools import agent, board, memory, orchestrator, project, task, utils
 
 
 @pytest.fixture
@@ -29,6 +31,8 @@ async def mcp_server(tmp_path: Path):
 
     stores = _Stores()
     stores._root = root  # bypass resolve_root()
+    stores._plan = PlanStore(root)
+    stores._trace = TraceStore(root)
 
     agents_registry: dict = {}
 
@@ -39,6 +43,7 @@ async def mcp_server(tmp_path: Path):
     memory.register(mcp, stores, agents_registry)
     agent.register(mcp, stores, agents_registry)
     utils.register(mcp, stores, agents_registry)
+    orchestrator.register(mcp, stores, agents_registry)
 
     return mcp, stores, agents_registry
 

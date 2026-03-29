@@ -175,5 +175,111 @@ class BoardStatus(BaseModel):
     recent_activity: list[str]
 
 
+# --- Orchestrator Models (Phase 2) ---
+
+
+class ExecutionStatus(StrEnum):
+    DRAFT = "draft"
+    APPROVED = "approved"
+    EXECUTING = "executing"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class ApprovalPolicy(StrEnum):
+    HUMAN_REQUIRED = "human_required"
+    AUTO_WITH_REVIEW = "auto_with_review"
+    AUTO = "auto"
+
+
+class TaskCompletionStatus(StrEnum):
+    DONE = "done"
+    DONE_WITH_CONCERNS = "done_with_concerns"
+    NEEDS_CONTEXT = "needs_context"
+    BLOCKED = "blocked"
+
+
+class ExecutionLevel(BaseModel):
+    """A group of tasks at the same dependency depth, executable in parallel."""
+
+    level: int
+    task_ids: list[str]
+    is_checkpoint: bool = False
+
+
+class ContextPacket(BaseModel):
+    """Constructed context for a sub-agent executing a task."""
+
+    task_id: str
+    goal: str = ""
+    spec_excerpt: str = ""
+    acceptance_criteria: list[str] = Field(default_factory=list)
+    key_files: list[str] = Field(default_factory=list)
+    dependencies_summary: str = ""
+    constraints: list[str] = Field(default_factory=list)
+    review_checklist: list[str] = Field(default_factory=list)
+
+
+class ExecutionPlan(BaseModel):
+    """A structured execution plan with DAG levels and context packets."""
+
+    id: str
+    project: str
+    goal: str
+    status: ExecutionStatus = ExecutionStatus.DRAFT
+    approval_policy: ApprovalPolicy = ApprovalPolicy.AUTO_WITH_REVIEW
+    task_ids: list[str] = Field(default_factory=list)
+    levels: list[ExecutionLevel] = Field(default_factory=list)
+    context_packets: dict[str, ContextPacket] = Field(default_factory=dict)
+    created: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    created_by: str = "unknown"
+    revision: int = 1
+
+
+class ExecutionTrace(BaseModel):
+    """Append-only record of a single task execution attempt."""
+
+    task_id: str
+    plan_id: str | None = None
+    project: str
+    agent_id: str
+    agent_type: str | None = None
+    model: str | None = None
+
+    # Timing
+    started: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    completed: datetime | None = None
+    duration_seconds: float | None = None
+
+    # Outcome
+    completion_status: TaskCompletionStatus | None = None
+    concerns: list[str] = Field(default_factory=list)
+    context_needed: list[str] = Field(default_factory=list)
+    block_reason: str | None = None
+
+    # Metrics
+    attempts: int = 1
+    files_changed: list[str] = Field(default_factory=list)
+    review_cycles: int = 0
+    review_issues: list[str] = Field(default_factory=list)
+
+    # Task metadata (denormalized for aggregation)
+    task_type: str | None = None
+    task_category: str | None = None
+    task_priority: str | None = None
+
+
+class ProjectPolicy(BaseModel):
+    """Per-project orchestration policy."""
+
+    approval_policy: ApprovalPolicy = ApprovalPolicy.AUTO_WITH_REVIEW
+    review_required: bool = False
+    checkpoint_interval: int = 0
+    max_parallel_tasks: int = 5
+
+
 # Forward ref update
 Task.model_rebuild()

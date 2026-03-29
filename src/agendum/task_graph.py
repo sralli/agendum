@@ -93,6 +93,51 @@ def detect_cycles(tasks: list[Task]) -> list[list[str]]:
     return cycles
 
 
+def topological_levels(tasks: list[Task]) -> list[list[str]]:
+    """Group tasks into execution levels by dependency depth.
+
+    Level 0: tasks with no dependencies
+    Level 1: tasks whose dependencies are all in level 0
+    Level N: tasks whose dependencies are all in levels < N
+
+    Returns list of levels, each level is a list of task IDs.
+    Raises ValueError if cycles are detected.
+    """
+    task_map = {t.id: t for t in tasks}
+    levels: dict[str, int] = {}
+
+    def get_level(task_id: str, visiting: set[str] | None = None) -> int:
+        if task_id in levels:
+            return levels[task_id]
+        if visiting is None:
+            visiting = set()
+        if task_id in visiting:
+            raise ValueError(f"Cycle detected involving {task_id}")
+        visiting.add(task_id)
+
+        task = task_map.get(task_id)
+        if not task or not task.depends_on:
+            levels[task_id] = 0
+            return 0
+
+        max_dep = -1
+        for dep_id in task.depends_on:
+            if dep_id in task_map:
+                max_dep = max(max_dep, get_level(dep_id, visiting))
+        levels[task_id] = max_dep + 1
+        return levels[task_id]
+
+    for t in tasks:
+        get_level(t.id)
+
+    # Group by level
+    grouped: dict[int, list[str]] = {}
+    for task_id, level in levels.items():
+        grouped.setdefault(level, []).append(task_id)
+
+    return [sorted(grouped[i]) for i in sorted(grouped)]
+
+
 _PRIORITY_ORDER = {
     TaskPriority.CRITICAL: 0,
     TaskPriority.HIGH: 1,
