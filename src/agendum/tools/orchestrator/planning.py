@@ -86,11 +86,7 @@ def register(mcp, stores, agents):
         for i, td in enumerate(task_defs):
             dep_indices = td.get("depends_on_indices", [])
             if dep_indices:
-                dep_ids = [
-                    created_tasks[idx].id
-                    for idx in dep_indices
-                    if 0 <= idx < len(created_tasks)
-                ]
+                dep_ids = [created_tasks[idx].id for idx in dep_indices if 0 <= idx < len(created_tasks)]
                 if dep_ids:
                     stores.task.update_task(project, created_tasks[i].id, depends_on=dep_ids)
                     created_tasks[i].depends_on = dep_ids
@@ -118,9 +114,9 @@ def register(mcp, stores, agents):
         context_packets = {}
         for t in created_tasks:
             td = task_defs[created_tasks.index(t)]
-            dep_summary = "\n".join(
-                f"- {d}: {task_map[d].title}" for d in t.depends_on if d in task_map
-            ) or "No dependencies"
+            dep_summary = (
+                "\n".join(f"- {d}: {task_map[d].title}" for d in t.depends_on if d in task_map) or "No dependencies"
+            )
 
             context_packets[t.id] = ContextPacket(
                 task_id=t.id,
@@ -197,10 +193,7 @@ def register(mcp, stores, agents):
 
         total_done = 0
         for lvl in plan.levels:
-            done_count = sum(
-                1 for tid in lvl.task_ids
-                if (t := task_map.get(tid)) and t.status == TaskStatus.DONE
-            )
+            done_count = sum(1 for tid in lvl.task_ids if (t := task_map.get(tid)) and t.status == TaskStatus.DONE)
             total_done += done_count
 
             ckpt = " [CHECKPOINT]" if lvl.is_checkpoint else ""

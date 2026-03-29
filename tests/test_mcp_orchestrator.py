@@ -26,8 +26,12 @@ def _tasks_json(tasks: list[dict]) -> str:
 async def _create_and_approve(mcp, project, goal, tasks, **kwargs):
     """Helper: create a plan and approve it for execution."""
     result = await call(
-        mcp, "pm_orchestrate_plan",
-        project=project, goal=goal, tasks_json=_tasks_json(tasks), **kwargs,
+        mcp,
+        "pm_orchestrate_plan",
+        project=project,
+        goal=goal,
+        tasks_json=_tasks_json(tasks),
+        **kwargs,
     )
     # Extract plan ID from result (always plan-NNN)
     plan_id = "plan-001"
@@ -40,12 +44,19 @@ async def _create_and_approve(mcp, project, goal, tasks, **kwargs):
 
 
 SIMPLE_TASKS = [
-    {"title": "Set up database schema", "type": "dev", "priority": "high",
-     "acceptance_criteria": ["Tables created", "Migrations run"]},
-    {"title": "Implement user model", "type": "dev", "depends_on_indices": [0],
-     "key_files": ["src/models/user.py"]},
-    {"title": "Add auth endpoints", "type": "dev", "depends_on_indices": [1],
-     "acceptance_criteria": ["Login works", "Signup works"]},
+    {
+        "title": "Set up database schema",
+        "type": "dev",
+        "priority": "high",
+        "acceptance_criteria": ["Tables created", "Migrations run"],
+    },
+    {"title": "Implement user model", "type": "dev", "depends_on_indices": [0], "key_files": ["src/models/user.py"]},
+    {
+        "title": "Add auth endpoints",
+        "type": "dev",
+        "depends_on_indices": [1],
+        "acceptance_criteria": ["Login works", "Signup works"],
+    },
 ]
 
 PARALLEL_TASKS = [
@@ -59,7 +70,8 @@ class TestOrchestrateCreate:
     async def test_create_plan(self, setup):
         mcp, stores, _ = setup
         result = await call(
-            mcp, "pm_orchestrate_plan",
+            mcp,
+            "pm_orchestrate_plan",
             project="myapp",
             goal="Add user authentication",
             tasks_json=_tasks_json(SIMPLE_TASKS),
@@ -73,7 +85,8 @@ class TestOrchestrateCreate:
     async def test_creates_tasks(self, setup):
         mcp, stores, _ = setup
         await call(
-            mcp, "pm_orchestrate_plan",
+            mcp,
+            "pm_orchestrate_plan",
             project="myapp",
             goal="Test",
             tasks_json=_tasks_json(SIMPLE_TASKS),
@@ -84,7 +97,8 @@ class TestOrchestrateCreate:
     async def test_dependencies_resolved(self, setup):
         mcp, stores, _ = setup
         await call(
-            mcp, "pm_orchestrate_plan",
+            mcp,
+            "pm_orchestrate_plan",
             project="myapp",
             goal="Test deps",
             tasks_json=_tasks_json(SIMPLE_TASKS),
@@ -98,7 +112,8 @@ class TestOrchestrateCreate:
     async def test_parallel_tasks_same_level(self, setup):
         mcp, stores, _ = setup
         result = await call(
-            mcp, "pm_orchestrate_plan",
+            mcp,
+            "pm_orchestrate_plan",
             project="myapp",
             goal="Test parallel",
             tasks_json=_tasks_json(PARALLEL_TASKS),
@@ -110,7 +125,8 @@ class TestOrchestrateCreate:
     async def test_invalid_json(self, setup):
         mcp, _, _ = setup
         result = await call(
-            mcp, "pm_orchestrate_plan",
+            mcp,
+            "pm_orchestrate_plan",
             project="myapp",
             goal="Test",
             tasks_json="not json",
@@ -120,7 +136,8 @@ class TestOrchestrateCreate:
     async def test_empty_tasks(self, setup):
         mcp, _, _ = setup
         result = await call(
-            mcp, "pm_orchestrate_plan",
+            mcp,
+            "pm_orchestrate_plan",
             project="myapp",
             goal="Test",
             tasks_json="[]",
@@ -130,7 +147,8 @@ class TestOrchestrateCreate:
     async def test_human_required_policy(self, setup):
         mcp, stores, _ = setup
         result = await call(
-            mcp, "pm_orchestrate_plan",
+            mcp,
+            "pm_orchestrate_plan",
             project="myapp",
             goal="Test",
             tasks_json=_tasks_json([{"title": "One task"}]),
@@ -146,7 +164,8 @@ class TestOrchestrateCreate:
             {"title": "C", "depends_on_indices": [1]},
         ]
         await call(
-            mcp, "pm_orchestrate_plan",
+            mcp,
+            "pm_orchestrate_plan",
             project="myapp",
             goal="Checkpoints",
             tasks_json=_tasks_json(tasks),
@@ -156,12 +175,12 @@ class TestOrchestrateCreate:
         # Level 1 (index 1) should be a checkpoint (every 2)
         assert plan.levels[1].is_checkpoint is True
 
-
     async def test_all_plans_start_as_draft(self, setup):
         """Plans always start as DRAFT regardless of policy."""
         mcp, stores, _ = setup
         await call(
-            mcp, "pm_orchestrate_plan",
+            mcp,
+            "pm_orchestrate_plan",
             project="myapp",
             goal="Test",
             tasks_json=_tasks_json([{"title": "Task"}]),
@@ -184,7 +203,8 @@ class TestOrchestrateNext:
         """Unapproved plans cannot dispatch tasks."""
         mcp, _, _ = setup
         await call(
-            mcp, "pm_orchestrate_plan",
+            mcp,
+            "pm_orchestrate_plan",
             project="myapp",
             goal="Test",
             tasks_json=_tasks_json([{"title": "X"}]),
@@ -204,7 +224,8 @@ class TestOrchestrateReport:
         await _create_and_approve(mcp, "myapp", "Test", [{"title": "Only task"}])
         tasks = stores.task.list_tasks("myapp")
         result = await call(
-            mcp, "pm_orchestrate_report",
+            mcp,
+            "pm_orchestrate_report",
             project="myapp",
             task_id=tasks[0].id,
             status="done",
@@ -225,7 +246,8 @@ class TestOrchestrateReport:
         await _create_and_approve(mcp, "myapp", "Test", [{"title": "Task"}])
         tasks = stores.task.list_tasks("myapp")
         result = await call(
-            mcp, "pm_orchestrate_report",
+            mcp,
+            "pm_orchestrate_report",
             project="myapp",
             task_id=tasks[0].id,
             status="done_with_concerns",
@@ -241,7 +263,8 @@ class TestOrchestrateReport:
         await _create_and_approve(mcp, "myapp", "Test", [{"title": "Task"}])
         tasks = stores.task.list_tasks("myapp")
         result = await call(
-            mcp, "pm_orchestrate_report",
+            mcp,
+            "pm_orchestrate_report",
             project="myapp",
             task_id=tasks[0].id,
             status="blocked",
@@ -254,10 +277,15 @@ class TestOrchestrateReport:
 
     async def test_report_unblocks_dependents(self, setup):
         mcp, stores, _ = setup
-        await _create_and_approve(mcp, "myapp", "Test", [
-            {"title": "First"},
-            {"title": "Second", "depends_on_indices": [0]},
-        ])
+        await _create_and_approve(
+            mcp,
+            "myapp",
+            "Test",
+            [
+                {"title": "First"},
+                {"title": "Second", "depends_on_indices": [0]},
+            ],
+        )
         tasks = stores.task.list_tasks("myapp")
         first = next(t for t in tasks if t.title == "First")
         second = next(t for t in tasks if t.title == "Second")
@@ -266,7 +294,8 @@ class TestOrchestrateReport:
         stores.task.update_task("myapp", second.id, status=TaskStatus.BLOCKED)
 
         result = await call(
-            mcp, "pm_orchestrate_report",
+            mcp,
+            "pm_orchestrate_report",
             project="myapp",
             task_id=first.id,
             status="done",
@@ -276,7 +305,8 @@ class TestOrchestrateReport:
     async def test_invalid_status(self, setup):
         mcp, _, _ = setup
         result = await call(
-            mcp, "pm_orchestrate_report",
+            mcp,
+            "pm_orchestrate_report",
             project="myapp",
             task_id="task-001",
             status="invalid",
@@ -298,7 +328,8 @@ class TestOrchestrateStatus:
         await _create_and_approve(mcp, "myapp", "Simple", [{"title": "One task"}])
         tasks = stores.task.list_tasks("myapp")
         await call(
-            mcp, "pm_orchestrate_report",
+            mcp,
+            "pm_orchestrate_report",
             project="myapp",
             task_id=tasks[0].id,
             status="done",
@@ -320,10 +351,15 @@ class TestFullFlow:
         mcp, stores, _ = setup
 
         # Create plan with 2 levels and approve
-        await _create_and_approve(mcp, "myapp", "Two-level flow", [
-            {"title": "Foundation"},
-            {"title": "Build on top", "depends_on_indices": [0]},
-        ])
+        await _create_and_approve(
+            mcp,
+            "myapp",
+            "Two-level flow",
+            [
+                {"title": "Foundation"},
+                {"title": "Build on top", "depends_on_indices": [0]},
+            ],
+        )
 
         # Get level 0
         result = await call(mcp, "pm_orchestrate_next", project="myapp", plan_id="plan-001")
@@ -339,7 +375,8 @@ class TestFullFlow:
         stores.task.update_task("myapp", builder.id, status=TaskStatus.BLOCKED)
 
         await call(
-            mcp, "pm_orchestrate_report",
+            mcp,
+            "pm_orchestrate_report",
             project="myapp",
             task_id=foundation.id,
             status="done",
@@ -352,7 +389,8 @@ class TestFullFlow:
 
         # Complete level 1
         await call(
-            mcp, "pm_orchestrate_report",
+            mcp,
+            "pm_orchestrate_report",
             project="myapp",
             task_id=builder.id,
             status="done",
@@ -368,13 +406,15 @@ class TestOrchestrateApprove:
     async def test_approve_draft(self, setup):
         mcp, stores, _ = setup
         await call(
-            mcp, "pm_orchestrate_plan",
+            mcp,
+            "pm_orchestrate_plan",
             project="myapp",
             goal="Test",
             tasks_json=_tasks_json([{"title": "Task"}]),
         )
         result = await call(
-            mcp, "pm_orchestrate_approve",
+            mcp,
+            "pm_orchestrate_approve",
             project="myapp",
             plan_id="plan-001",
             decision="approve",
@@ -386,13 +426,15 @@ class TestOrchestrateApprove:
     async def test_reject_plan(self, setup):
         mcp, stores, _ = setup
         await call(
-            mcp, "pm_orchestrate_plan",
+            mcp,
+            "pm_orchestrate_plan",
             project="myapp",
             goal="Test",
             tasks_json=_tasks_json([{"title": "Task"}]),
         )
         result = await call(
-            mcp, "pm_orchestrate_approve",
+            mcp,
+            "pm_orchestrate_approve",
             project="myapp",
             plan_id="plan-001",
             decision="reject",
@@ -404,13 +446,15 @@ class TestOrchestrateApprove:
     async def test_modify_plan(self, setup):
         mcp, stores, _ = setup
         await call(
-            mcp, "pm_orchestrate_plan",
+            mcp,
+            "pm_orchestrate_plan",
             project="myapp",
             goal="Test",
             tasks_json=_tasks_json([{"title": "Task"}]),
         )
         result = await call(
-            mcp, "pm_orchestrate_approve",
+            mcp,
+            "pm_orchestrate_approve",
             project="myapp",
             plan_id="plan-001",
             decision="modify",
@@ -424,7 +468,8 @@ class TestOrchestrateApprove:
         await _create_and_approve(mcp, "myapp", "Test", [{"title": "Task"}])
         # Plan is now EXECUTING — cannot approve again
         result = await call(
-            mcp, "pm_orchestrate_approve",
+            mcp,
+            "pm_orchestrate_approve",
             project="myapp",
             plan_id="plan-001",
             decision="approve",
@@ -434,13 +479,15 @@ class TestOrchestrateApprove:
     async def test_approve_with_notes(self, setup):
         mcp, _, _ = setup
         await call(
-            mcp, "pm_orchestrate_plan",
+            mcp,
+            "pm_orchestrate_plan",
             project="myapp",
             goal="Test",
             tasks_json=_tasks_json([{"title": "Task"}]),
         )
         result = await call(
-            mcp, "pm_orchestrate_approve",
+            mcp,
+            "pm_orchestrate_approve",
             project="myapp",
             plan_id="plan-001",
             decision="approve",
@@ -457,7 +504,8 @@ class TestOrchestrateReview:
         tasks = stores.task.list_tasks("myapp")
         task = tasks[0]
         result = await call(
-            mcp, "pm_orchestrate_report",
+            mcp,
+            "pm_orchestrate_report",
             project="myapp",
             task_id=task.id,
             status="done",
@@ -476,7 +524,8 @@ class TestOrchestrateReview:
         mcp, stores, _ = setup
         task_id, _ = await self._create_reviewed_task(mcp, stores)
         result = await call(
-            mcp, "pm_orchestrate_review",
+            mcp,
+            "pm_orchestrate_review",
             project="myapp",
             task_id=task_id,
             stage="spec",
@@ -488,7 +537,8 @@ class TestOrchestrateReview:
         mcp, stores, _ = setup
         task_id, _ = await self._create_reviewed_task(mcp, stores)
         result = await call(
-            mcp, "pm_orchestrate_review",
+            mcp,
+            "pm_orchestrate_review",
             project="myapp",
             task_id=task_id,
             stage="spec",
@@ -504,13 +554,21 @@ class TestOrchestrateReview:
         task_id, _ = await self._create_reviewed_task(mcp, stores)
         # Pass spec review
         await call(
-            mcp, "pm_orchestrate_review",
-            project="myapp", task_id=task_id, stage="spec", passed=True,
+            mcp,
+            "pm_orchestrate_review",
+            project="myapp",
+            task_id=task_id,
+            stage="spec",
+            passed=True,
         )
         # Pass quality review
         result = await call(
-            mcp, "pm_orchestrate_review",
-            project="myapp", task_id=task_id, stage="quality", passed=True,
+            mcp,
+            "pm_orchestrate_review",
+            project="myapp",
+            task_id=task_id,
+            stage="quality",
+            passed=True,
         )
         assert "DONE" in result
         task = stores.task.get_task("myapp", task_id)
@@ -520,12 +578,20 @@ class TestOrchestrateReview:
         mcp, stores, _ = setup
         task_id, _ = await self._create_reviewed_task(mcp, stores)
         await call(
-            mcp, "pm_orchestrate_review",
-            project="myapp", task_id=task_id, stage="spec", passed=True,
+            mcp,
+            "pm_orchestrate_review",
+            project="myapp",
+            task_id=task_id,
+            stage="spec",
+            passed=True,
         )
         result = await call(
-            mcp, "pm_orchestrate_review",
-            project="myapp", task_id=task_id, stage="quality", passed=False,
+            mcp,
+            "pm_orchestrate_review",
+            project="myapp",
+            task_id=task_id,
+            stage="quality",
+            passed=False,
             issues="Magic numbers,No docstring",
         )
         assert "failed" in result.lower()
@@ -535,10 +601,15 @@ class TestOrchestrateReview:
     async def test_review_unblocks_dependents(self, setup):
         mcp, stores, _ = setup
         await call(mcp, "pm_orchestrate_policy", project="myapp", review_required=True)
-        await _create_and_approve(mcp, "myapp", "Unblock test", [
-            {"title": "First"},
-            {"title": "Second", "depends_on_indices": [0]},
-        ])
+        await _create_and_approve(
+            mcp,
+            "myapp",
+            "Unblock test",
+            [
+                {"title": "First"},
+                {"title": "Second", "depends_on_indices": [0]},
+            ],
+        )
         tasks = stores.task.list_tasks("myapp")
         first = next(t for t in tasks if t.title == "First")
         second = next(t for t in tasks if t.title == "Second")
@@ -548,33 +619,49 @@ class TestOrchestrateReview:
 
         # Report first done (goes to review)
         await call(
-            mcp, "pm_orchestrate_report",
-            project="myapp", task_id=first.id, status="done",
+            mcp,
+            "pm_orchestrate_report",
+            project="myapp",
+            task_id=first.id,
+            status="done",
         )
 
         # Pass both reviews
         await call(
-            mcp, "pm_orchestrate_review",
-            project="myapp", task_id=first.id, stage="spec", passed=True,
+            mcp,
+            "pm_orchestrate_review",
+            project="myapp",
+            task_id=first.id,
+            stage="spec",
+            passed=True,
         )
         result = await call(
-            mcp, "pm_orchestrate_review",
-            project="myapp", task_id=first.id, stage="quality", passed=True,
+            mcp,
+            "pm_orchestrate_review",
+            project="myapp",
+            task_id=first.id,
+            stage="quality",
+            passed=True,
         )
         assert "Unblocked" in result
 
     async def test_cannot_review_pending_task(self, setup):
         mcp, stores, _ = setup
         await call(
-            mcp, "pm_orchestrate_plan",
+            mcp,
+            "pm_orchestrate_plan",
             project="myapp",
             goal="Test",
             tasks_json=_tasks_json([{"title": "Task"}]),
         )
         tasks = stores.task.list_tasks("myapp")
         result = await call(
-            mcp, "pm_orchestrate_review",
-            project="myapp", task_id=tasks[0].id, stage="spec", passed=True,
+            mcp,
+            "pm_orchestrate_review",
+            project="myapp",
+            task_id=tasks[0].id,
+            stage="spec",
+            passed=True,
         )
         assert "Error" in result
 
@@ -585,8 +672,11 @@ class TestOrchestrateReview:
         await _create_and_approve(mcp, "myapp", "No review", [{"title": "Direct done"}])
         tasks = stores.task.list_tasks("myapp")
         await call(
-            mcp, "pm_orchestrate_report",
-            project="myapp", task_id=tasks[0].id, status="done",
+            mcp,
+            "pm_orchestrate_report",
+            project="myapp",
+            task_id=tasks[0].id,
+            status="done",
         )
         task = stores.task.get_task("myapp", tasks[0].id)
         assert task.status == TaskStatus.DONE
@@ -602,7 +692,8 @@ class TestOrchestratePolicy:
     async def test_update_policy(self, setup):
         mcp, stores, _ = setup
         result = await call(
-            mcp, "pm_orchestrate_policy",
+            mcp,
+            "pm_orchestrate_policy",
             project="myapp",
             review_required=False,
             max_parallel_tasks=10,
@@ -618,7 +709,8 @@ class TestOrchestratePolicy:
     async def test_update_approval_policy(self, setup):
         mcp, _, _ = setup
         result = await call(
-            mcp, "pm_orchestrate_policy",
+            mcp,
+            "pm_orchestrate_policy",
             project="myapp",
             approval_policy="human_required",
         )
@@ -627,7 +719,8 @@ class TestOrchestratePolicy:
     async def test_invalid_approval_policy(self, setup):
         mcp, _, _ = setup
         result = await call(
-            mcp, "pm_orchestrate_policy",
+            mcp,
+            "pm_orchestrate_policy",
             project="myapp",
             approval_policy="invalid",
         )

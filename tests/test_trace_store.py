@@ -32,23 +32,41 @@ class TestTraceStore:
         assert traces[0].completion_status == TaskCompletionStatus.DONE
 
     def test_filter_by_plan_id(self, trace_store):
-        trace_store.write_trace(ExecutionTrace(
-            task_id="t1", project="myapp", agent_id="a", plan_id="plan-001",
-        ))
-        trace_store.write_trace(ExecutionTrace(
-            task_id="t2", project="myapp", agent_id="a", plan_id="plan-002",
-        ))
+        trace_store.write_trace(
+            ExecutionTrace(
+                task_id="t1",
+                project="myapp",
+                agent_id="a",
+                plan_id="plan-001",
+            )
+        )
+        trace_store.write_trace(
+            ExecutionTrace(
+                task_id="t2",
+                project="myapp",
+                agent_id="a",
+                plan_id="plan-002",
+            )
+        )
         traces = trace_store.list_traces("myapp", plan_id="plan-001")
         assert len(traces) == 1
         assert traces[0].task_id == "t1"
 
     def test_filter_by_task_id(self, trace_store):
-        trace_store.write_trace(ExecutionTrace(
-            task_id="t1", project="myapp", agent_id="a",
-        ))
-        trace_store.write_trace(ExecutionTrace(
-            task_id="t2", project="myapp", agent_id="a",
-        ))
+        trace_store.write_trace(
+            ExecutionTrace(
+                task_id="t1",
+                project="myapp",
+                agent_id="a",
+            )
+        )
+        trace_store.write_trace(
+            ExecutionTrace(
+                task_id="t2",
+                project="myapp",
+                agent_id="a",
+            )
+        )
         traces = trace_store.list_traces("myapp", task_id="t2")
         assert len(traces) == 1
 
@@ -59,21 +77,25 @@ class TestTraceStore:
 
     def test_aggregate_with_data(self, trace_store):
         for i in range(3):
-            trace_store.write_trace(ExecutionTrace(
-                task_id=f"t{i}",
+            trace_store.write_trace(
+                ExecutionTrace(
+                    task_id=f"t{i}",
+                    project="myapp",
+                    agent_id="a",
+                    completion_status=TaskCompletionStatus.DONE,
+                    duration_seconds=float(100 + i * 50),
+                    task_type="dev",
+                )
+            )
+        trace_store.write_trace(
+            ExecutionTrace(
+                task_id="t-blocked",
                 project="myapp",
                 agent_id="a",
-                completion_status=TaskCompletionStatus.DONE,
-                duration_seconds=float(100 + i * 50),
-                task_type="dev",
-            ))
-        trace_store.write_trace(ExecutionTrace(
-            task_id="t-blocked",
-            project="myapp",
-            agent_id="a",
-            completion_status=TaskCompletionStatus.BLOCKED,
-            block_reason="missing API key",
-        ))
+                completion_status=TaskCompletionStatus.BLOCKED,
+                block_reason="missing API key",
+            )
+        )
 
         agg = trace_store.aggregate("myapp")
         assert agg["total_traces"] == 4

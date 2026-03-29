@@ -300,7 +300,8 @@ def register(mcp, stores, agents):
 
             updated_history = task.agent_history + [record]
             stores.task.update_task(
-                project, task_id,
+                project,
+                task_id,
                 structured_handoff=record,
                 agent_history=updated_history,
             )

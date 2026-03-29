@@ -13,6 +13,7 @@ async def _init(mcp) -> None:
 
 # --- pm_memory_write + pm_memory_read ---
 
+
 @pytest.mark.asyncio
 async def test_memory_write_and_read(mcp_server):
     mcp, _, _ = mcp_server
@@ -56,12 +57,12 @@ async def test_memory_write_invalid_scope(mcp_server):
 
 # --- pm_memory_append ---
 
+
 @pytest.mark.asyncio
 async def test_memory_append_happy(mcp_server):
     mcp, _, _ = mcp_server
     await _init(mcp)
-    result = await call(mcp, "pm_memory_append", scope="decisions",
-                        entry="Use filelock for safety", author="agent-1")
+    result = await call(mcp, "pm_memory_append", scope="decisions", entry="Use filelock for safety", author="agent-1")
     assert "Appended" in result
     content = await call(mcp, "pm_memory_read", scope="decisions")
     assert "Use filelock for safety" in content
@@ -87,6 +88,7 @@ async def test_memory_append_invalid_scope(mcp_server):
 
 
 # --- pm_memory_search ---
+
 
 @pytest.mark.asyncio
 async def test_memory_search_happy(mcp_server):

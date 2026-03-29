@@ -26,8 +26,7 @@ async def test_check_deps_shows_ready_tasks(mcp_server):
     mcp, _, _ = mcp_server
     await _init(mcp)
     await call(mcp, "pm_task_create", project="proj", title="Ready task")
-    await call(mcp, "pm_task_create", project="proj", title="Blocked task",
-               depends_on=["task-001"])
+    await call(mcp, "pm_task_create", project="proj", title="Blocked task", depends_on=["task-001"])
     result = await call(mcp, "pm_check_deps", project="proj")
     assert "Ready to start: 1" in result
     assert "task-001" in result
@@ -54,6 +53,7 @@ async def test_check_deps_total_count(mcp_server):
 
 
 # --- pm_check_deps error path ---
+
 
 @pytest.mark.asyncio
 async def test_check_deps_invalid_project(mcp_server):

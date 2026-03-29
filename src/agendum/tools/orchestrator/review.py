@@ -92,7 +92,9 @@ def register(mcp, stores, agents):
             stores.task.update_task(project, task_id, status=TaskStatus.IN_PROGRESS)
             issue_str = f": {', '.join(issues_list)}" if issues_list else ""
             stores.task.add_progress(
-                project, task_id, reviewer_agent_id,
+                project,
+                task_id,
+                reviewer_agent_id,
                 f"Review FAILED ({stage}){issue_str}",
             )
 
@@ -110,18 +112,21 @@ def register(mcp, stores, agents):
         # Passed
         if stage == "spec":
             stores.task.add_progress(
-                project, task_id, reviewer_agent_id,
+                project,
+                task_id,
+                reviewer_agent_id,
                 "Spec review PASSED — acceptance criteria met",
             )
             return (
-                f"Spec review passed for {task_id}. "
-                "Proceed with quality review (pm_orchestrate_review stage=quality)."
+                f"Spec review passed for {task_id}. Proceed with quality review (pm_orchestrate_review stage=quality)."
             )
 
         # Quality review passed -> mark DONE and unblock
         stores.task.update_task(project, task_id, status=TaskStatus.DONE)
         stores.task.add_progress(
-            project, task_id, reviewer_agent_id,
+            project,
+            task_id,
+            reviewer_agent_id,
             "Quality review PASSED — task complete",
         )
 
@@ -135,7 +140,9 @@ def register(mcp, stores, agents):
 
         if issues_list:
             stores.task.add_progress(
-                project, task_id, reviewer_agent_id,
+                project,
+                task_id,
+                reviewer_agent_id,
                 f"Quality notes: {', '.join(issues_list)}",
             )
 

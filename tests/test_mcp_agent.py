@@ -14,14 +14,18 @@ async def _init(mcp) -> None:
 
 # --- pm_agent_register ---
 
+
 @pytest.mark.asyncio
 async def test_agent_register_happy(mcp_server):
     mcp, _, agents = mcp_server
-    result = await call(mcp, "pm_agent_register",
-                        agent_id="claude-1",
-                        agent_type="claude-code",
-                        capabilities="code,test",
-                        model="claude-sonnet-4-6")
+    result = await call(
+        mcp,
+        "pm_agent_register",
+        agent_id="claude-1",
+        agent_type="claude-code",
+        capabilities="code,test",
+        model="claude-sonnet-4-6",
+    )
     assert "Registered agent 'claude-1'" in result
     assert "claude-1" in agents
 
@@ -35,6 +39,7 @@ async def test_agent_register_minimal(mcp_server):
 
 
 # --- pm_agent_heartbeat ---
+
 
 @pytest.mark.asyncio
 async def test_agent_heartbeat_happy(mcp_server):
@@ -52,6 +57,7 @@ async def test_agent_heartbeat_unknown(mcp_server):
 
 
 # --- pm_agent_list ---
+
 
 @pytest.mark.asyncio
 async def test_agent_list_empty(mcp_server):
@@ -71,6 +77,7 @@ async def test_agent_list_shows_agents(mcp_server):
 
 
 # --- pm_agent_suggest ---
+
 
 @pytest.mark.asyncio
 async def test_agent_suggest_dev_task(mcp_server):
@@ -100,6 +107,7 @@ async def test_agent_suggest_not_found(mcp_server):
 
 # --- pm_agent_register additional error/edge ---
 
+
 @pytest.mark.asyncio
 async def test_agent_register_overwrites_existing(mcp_server):
     """pm_agent_register: re-registering same agent_id updates the record."""
@@ -112,6 +120,7 @@ async def test_agent_register_overwrites_existing(mcp_server):
 
 # --- pm_agent_suggest error path with invalid project ---
 
+
 @pytest.mark.asyncio
 async def test_agent_suggest_invalid_project(mcp_server):
     """pm_agent_suggest: invalid project name (path traversal) returns Error."""
@@ -122,6 +131,7 @@ async def test_agent_suggest_invalid_project(mcp_server):
 
 
 # --- pm_agent_list shows disconnected agents from disk ---
+
 
 @pytest.mark.asyncio
 async def test_agent_list_shows_session_label(mcp_server):

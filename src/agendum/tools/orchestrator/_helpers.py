@@ -39,10 +39,7 @@ def check_plan_level_complete(stores, project: str, plan_id: str, task_id: str) 
     task_statuses = {t.id: t.status for t in stores.task.list_tasks(project)}
     for lvl in plan.levels:
         if task_id in lvl.task_ids:
-            all_done = all(
-                task_statuses.get(tid, TaskStatus.PENDING) == TaskStatus.DONE
-                for tid in lvl.task_ids
-            )
+            all_done = all(task_statuses.get(tid, TaskStatus.PENDING) == TaskStatus.DONE for tid in lvl.task_ids)
             if all_done:
                 lines = [f"Level {lvl.level} complete!"]
                 if lvl.is_checkpoint:
