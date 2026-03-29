@@ -79,6 +79,10 @@ class TaskStore:
     def get_task(self, project: str, task_id: str) -> Task | None:
         path = _task_path(self.root, project, task_id)
         if not path.exists():
+            # Check archive (tasks/done/) for completed/cancelled tasks
+            archive_path = _tasks_dir(self.root, project) / "done" / f"{sanitize_name(task_id)}.md"
+            if archive_path.exists():
+                return task_from_file(archive_path)
             return None
         return task_from_file(path)
 
