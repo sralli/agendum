@@ -104,7 +104,8 @@ def register(mcp, stores, agents):
                 latest.review_issues.extend(issues_list)
                 stores.trace.write_trace(latest)
 
-            return f"Review failed ({stage}): {task_id} back to in_progress. Issues: {', '.join(issues_list) or 'none specified'}"
+            issue_summary = ", ".join(issues_list) or "none specified"
+            return f"Review failed ({stage}): {task_id} back to in_progress. Issues: {issue_summary}"
 
         # Passed
         if stage == "spec":
@@ -112,7 +113,10 @@ def register(mcp, stores, agents):
                 project, task_id, reviewer_agent_id,
                 "Spec review PASSED — acceptance criteria met",
             )
-            return f"Spec review passed for {task_id}. Proceed with quality review (pm_orchestrate_review stage=quality)."
+            return (
+                f"Spec review passed for {task_id}. "
+                "Proceed with quality review (pm_orchestrate_review stage=quality)."
+            )
 
         # Quality review passed -> mark DONE and unblock
         stores.task.update_task(project, task_id, status=TaskStatus.DONE)

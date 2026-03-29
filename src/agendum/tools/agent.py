@@ -86,7 +86,10 @@ def register(mcp, stores, agents):
             if rec.id not in active_ids:
                 last = rec.last_seen.strftime("%Y-%m-%d %H:%M")
                 task_str = f", last task: {rec.last_task}" if rec.last_task else ""
-                lines.append(f"  {rec.id} ({rec.type}) — disconnected, last seen {last}{task_str} [session {rec.session_count}]")
+                lines.append(
+                    f"  {rec.id} ({rec.type}) — disconnected, "
+                    f"last seen {last}{task_str} [session {rec.session_count}]"
+                )
 
         if not lines:
             return "No agents registered."

@@ -7,8 +7,8 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
-import yaml
 import frontmatter
+import yaml
 
 from agendum.models import AgentHandoffRecord, ProgressEntry, Task, TaskPriority, TaskStatus, TaskType
 from agendum.store import sanitize_name

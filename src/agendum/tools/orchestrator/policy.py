@@ -30,7 +30,10 @@ def register(mcp, stores, agents):
             try:
                 updates["approval_policy"] = ApprovalPolicy(approval_policy)
             except ValueError:
-                return f"Error: invalid approval_policy '{approval_policy}'. Use: human_required, auto_with_review, auto"
+                return (
+                    f"Error: invalid approval_policy '{approval_policy}'. "
+                    "Use: human_required, auto_with_review, auto"
+                )
         if review_required is not None:
             updates["review_required"] = review_required
         if checkpoint_interval is not None:

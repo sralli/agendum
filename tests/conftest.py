@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 import pytest_asyncio
-
 from mcp.server.fastmcp import FastMCP
 
 from agendum.server import _Stores
