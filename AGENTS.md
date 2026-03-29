@@ -6,7 +6,7 @@
 
 ```bash
 uv sync                          # install dependencies
-uv run pytest tests/ -v          # run all 135+ tests
+uv run pytest tests/ -v          # run all 196 tests
 uv run ruff check .              # lint
 uv run mypy src/agendum          # type-check
 ```
@@ -25,9 +25,11 @@ src/agendum/
   store/
     locking.py       — get_lock(path), atomic_write(path, content) — concurrency primitives
     task_store.py    — TaskStore: CRUD for task Markdown files with YAML frontmatter
-    project_store.py — ProjectStore: project init, list, get
+    project_store.py — ProjectStore: project init, list, get, policies
     memory_store.py  — MemoryStore: append/read/search persistent agent notes
     agent_store.py   — AgentStore: agent registration and heartbeat persistence
+    plan_store.py    — PlanStore: execution plan CRUD (YAML files)
+    trace_store.py   — TraceStore: append-only execution traces
 
   tools/
     board.py         — pm_board_init, pm_board_status
@@ -36,6 +38,13 @@ src/agendum/
     memory.py        — pm_memory_{write,append,read,search}
     agent.py         — pm_agent_{register,heartbeat,list,suggest}
     utils.py         — pm_check_deps, pm_plan_update, pm_spec_update
+    orchestrator/    — Structured planning, dispatch, review, and policy
+      __init__.py    — register() delegates to submodules
+      _helpers.py    — resolve_and_unblock(), check_plan_level_complete(), parse_csv()
+      planning.py    — pm_orchestrate_plan, pm_orchestrate_status
+      dispatch.py    — pm_orchestrate_next, pm_orchestrate_report
+      review.py      — pm_orchestrate_review, pm_orchestrate_approve
+      policy.py      — pm_orchestrate_policy
 
 tests/
   conftest.py        — mcp_server fixture, call() helper
@@ -65,7 +74,8 @@ tests/
 - `path.write_text()` or `open(path, "w")` without `get_lock()` — race condition
 - Raise exceptions from MCP tool functions — return error strings instead (e.g. `return f"Error: {e}"`)
 - Modify files under `.agendum/` — that is runtime board data, not source
-- Skip the test suite — all 135+ tests must pass before any PR
+- Skip the test suite — all 196 tests must pass before any PR
+- Add `Co-Authored-By` lines to commits — no AI co-author attribution
 
 ---
 
@@ -236,6 +246,39 @@ Key notes:
 4. **`mcp_server` returns a 3-tuple.** Unpack as `mcp, stores, agents = mcp_server`. Forgetting `agents` will cause an unpack error.
 
 5. **Task IDs are sequential per project.** IDs are generated as `task-001`, `task-002`, etc. based on the highest existing number in the project's tasks directory. Never hard-code an ID without first checking the project state.
+
+---
+
+## Orchestrator Conventions
+
+The `tools/orchestrator/` package follows specific patterns:
+
+### Adding a new orchestrator tool
+
+1. Choose the right submodule: `planning.py` (plan creation/status), `dispatch.py` (task dispatch/reporting), `review.py` (review/approval), `policy.py` (configuration)
+2. Add the tool inside the `register(mcp, stores, agents)` function
+3. Reuse helpers from `_helpers.py` — don't duplicate resolve/unblock logic
+
+### Key rules
+
+- **Plans always start as DRAFT.** The caller must call `pm_orchestrate_approve` to begin execution. This ensures human review before task dispatch.
+- **Traces are append-only.** Never modify a trace file after creation. Write a new trace for each attempt.
+- **Context packets are built at plan creation time** in `planning.py`, stored in the plan YAML, and served by `pm_orchestrate_next`.
+- **Four-status reporting** (`done`, `done_with_concerns`, `needs_context`, `blocked`) maps to TaskStatus but preserves richer information in traces.
+- **Review is opt-in** via `ProjectPolicy.review_required`. Default is `False`.
+
+### Models added for orchestration
+
+| Model | Purpose |
+|-------|---------|
+| `ExecutionPlan` | Plan with DAG levels, context packets, status |
+| `ExecutionLevel` | Group of task IDs at the same dependency depth |
+| `ContextPacket` | Constructed context for a sub-agent executing a task |
+| `ExecutionTrace` | Append-only record of a task execution attempt |
+| `ProjectPolicy` | Per-project review/approval configuration |
+| `ExecutionStatus` | draft, approved, executing, paused, completed, failed, cancelled |
+| `TaskCompletionStatus` | done, done_with_concerns, needs_context, blocked |
+| `ApprovalPolicy` | human_required, auto_with_review, auto |
 
 ---
 
