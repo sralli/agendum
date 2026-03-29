@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
+from agentpm.store.locking import atomic_write, get_lock
+
 
 class MemoryStore:
     """File-based memory storage."""
@@ -35,13 +37,14 @@ class MemoryStore:
         return ""
 
     def write(self, scope: str, content: str) -> None:
-        """Write/overwrite a memory scope file."""
+        """Write/overwrite a memory scope file (locked + atomic)."""
         self.ensure_dir()
         path = self._scope_path(scope)
-        path.write_text(content)
+        with get_lock(path):
+            atomic_write(path, content)
 
     def append(self, scope: str, entry: str, author: str | None = None) -> None:
-        """Append an entry to a memory scope file."""
+        """Append an entry to a memory scope file (locked + atomic)."""
         self.ensure_dir()
         path = self._scope_path(scope)
 
@@ -49,8 +52,9 @@ class MemoryStore:
         attribution = f" ({author})" if author else ""
         line = f"\n- [{ts}]{attribution} {entry}\n"
 
-        with open(path, "a") as f:
-            f.write(line)
+        with get_lock(path):
+            existing = path.read_text() if path.exists() else ""
+            atomic_write(path, existing + line)
 
     def search(self, query: str) -> dict[str, list[str]]:
         """Search across all memory scopes for matching lines."""

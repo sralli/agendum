@@ -8,3 +8,7 @@ wheels/
 
 # Virtual environments
 .venv
+
+# File locking sidecar files
+**/*.lock
+**/*.tmp

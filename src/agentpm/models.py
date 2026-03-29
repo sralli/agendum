@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -52,6 +53,36 @@ class TaskCategory(StrEnum):
 # --- Core Models ---
 
 
+class AgentHandoffRecord(BaseModel):
+    """Structured snapshot left by an agent when handing off a task."""
+
+    agent_id: str
+    agent_type: str | None = None
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    device: str | None = None
+    git_branch: str | None = None
+    working_dir: str | None = None
+    completed: list[str] = Field(default_factory=list)
+    remaining: list[str] = Field(default_factory=list)
+    key_files: list[str] = Field(default_factory=list)
+    decisions: list[str] = Field(default_factory=list)
+    gotchas: list[str] = Field(default_factory=list)
+    next_agent_hints: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentPersistenceRecord(BaseModel):
+    """Disk-backed agent record for cross-session visibility."""
+
+    id: str
+    type: str
+    capabilities: list[str] = Field(default_factory=list)
+    model: str | None = None
+    started: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    last_seen: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    last_task: str | None = None
+    session_count: int = 1
+
+
 class Task(BaseModel):
     """A single task in the project board."""
 
@@ -76,7 +107,9 @@ class Task(BaseModel):
     progress: list[ProgressEntry] = Field(default_factory=list)
     decisions: list[str] = Field(default_factory=list)
     artifacts: list[str] = Field(default_factory=list)
-    handoff: str = ""
+    handoff: str = ""  # legacy free-text handoff (kept for backward compat)
+    structured_handoff: AgentHandoffRecord | None = None
+    agent_history: list[AgentHandoffRecord] = Field(default_factory=list)
 
 
 class ProgressEntry(BaseModel):

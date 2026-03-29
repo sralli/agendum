@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from agentpm.models import TaskStatus
+from agentpm.env_context import get_device_name, get_git_branch, get_working_dir
+from agentpm.models import AgentHandoffRecord, TaskStatus
 from agentpm.task_graph import resolve_completions, suggest_next_task
 
 _VALID_STATUSES = ", ".join(s.value for s in TaskStatus)
@@ -114,8 +115,47 @@ def register(mcp, stores, agents):
             lines.append("\n## Decisions")
             for d in task.decisions:
                 lines.append(f"  - {d}")
-        if task.handoff:
+
+        # Structured handoff takes priority over legacy free text
+        if task.structured_handoff:
+            h = task.structured_handoff
+            ts = h.timestamp.strftime("%Y-%m-%d %H:%M") if h.timestamp else "?"
+            ctx_parts = [f"{h.agent_id}"]
+            if h.device:
+                ctx_parts.append(h.device)
+            if h.git_branch:
+                ctx_parts.append(f"branch: {h.git_branch}")
+            lines.append(f"\n## Handoff  (from {', '.join(ctx_parts)} at {ts})")
+            if h.completed:
+                lines.append("  Done:")
+                for item in h.completed:
+                    lines.append(f"    [x] {item}")
+            if h.remaining:
+                lines.append("  Remaining:")
+                for item in h.remaining:
+                    lines.append(f"    [ ] {item}")
+            if h.key_files:
+                lines.append(f"  Key files: {', '.join(h.key_files)}")
+            if h.decisions:
+                lines.append("  Decisions:")
+                for d in h.decisions:
+                    lines.append(f"    - {d}")
+            if h.gotchas:
+                lines.append("  Gotchas:")
+                for g in h.gotchas:
+                    lines.append(f"    ⚠ {g}")
+            if h.next_agent_hints:
+                hints = ", ".join(f"{k}: {v}" for k, v in h.next_agent_hints.items())
+                lines.append(f"  Next agent hints: {hints}")
+        elif task.handoff:
             lines.append(f"\n## Handoff\n{task.handoff}")
+
+        if task.agent_history:
+            lines.append(f"\n## Agent History ({len(task.agent_history)} handoff(s))")
+            for rec in task.agent_history:
+                ts = rec.timestamp.strftime("%Y-%m-%d %H:%M") if rec.timestamp else "?"
+                lines.append(f"  - {rec.agent_id} ({rec.agent_type or 'unknown'}) at {ts}")
+
         return "\n".join(lines)
 
     @mcp.tool()
@@ -209,11 +249,29 @@ def register(mcp, stores, agents):
         return f"Blocked {task_id}: {reason}"
 
     @mcp.tool()
-    def pm_task_handoff(project: str, task_id: str, handoff_context: str, agent_id: str = "unknown") -> str:
-        """Write handoff context for the next agent picking up this task.
+    def pm_task_handoff(
+        project: str,
+        task_id: str,
+        agent_id: str = "unknown",
+        completed: list[str] | None = None,
+        remaining: list[str] | None = None,
+        key_files: list[str] | None = None,
+        decisions: list[str] | None = None,
+        gotchas: list[str] | None = None,
+        next_agent_hints: dict | None = None,
+        device: str | None = None,
+        git_branch: str | None = None,
+        working_dir: str | None = None,
+        handoff_context: str = "",
+    ) -> str:
+        """Write structured handoff context for the next agent picking up this task.
 
-        Include: what's been done, what remains, key decisions, gotchas.
-        The next agent will see this when they claim the task.
+        Use completed/remaining lists to describe what's done and what's next.
+        key_files, decisions, and gotchas help the next agent orient immediately.
+        next_agent_hints is optional JSON: {"category": "code-complex", "model": "claude-opus"}.
+        device/git_branch/working_dir are auto-detected if not provided.
+
+        Legacy: passing handoff_context as a plain string still works (stored as free text).
         """
         try:
             task = stores.task.get_task(project, task_id)
@@ -221,7 +279,39 @@ def register(mcp, stores, agents):
             return f"Error: {e}"
         if not task:
             return f"Task '{task_id}' not found."
-        stores.task.update_task(project, task_id, handoff=handoff_context)
+
+        # If using the new structured format
+        if completed is not None or remaining is not None:
+            hints: dict = next_agent_hints or {}
+
+            record = AgentHandoffRecord(
+                agent_id=agent_id,
+                agent_type=None,
+                device=device or get_device_name(),
+                git_branch=git_branch or get_git_branch(),
+                working_dir=working_dir or get_working_dir(),
+                completed=completed or [],
+                remaining=remaining or [],
+                key_files=key_files or [],
+                decisions=decisions or [],
+                gotchas=gotchas or [],
+                next_agent_hints=hints,
+            )
+
+            updated_history = task.agent_history + [record]
+            stores.task.update_task(
+                project, task_id,
+                structured_handoff=record,
+                agent_history=updated_history,
+            )
+            stores.task.add_progress(project, task_id, agent_id, "Wrote structured handoff context")
+            done_count = len(record.completed)
+            todo_count = len(record.remaining)
+            return f"Handoff context saved for {task_id}. Done: {done_count} items, remaining: {todo_count} items."
+
+        # Legacy free-text fallback
+        text = handoff_context
+        stores.task.update_task(project, task_id, handoff=text)
         stores.task.add_progress(project, task_id, agent_id, "Wrote handoff context")
         return f"Handoff context saved for {task_id}."
 

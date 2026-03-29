@@ -8,6 +8,7 @@ import yaml
 
 from agentpm.models import BoardConfig, Project
 from agentpm.store import sanitize_name
+from agentpm.store.locking import atomic_write, get_lock
 
 
 class ProjectStore:
@@ -31,7 +32,9 @@ class ProjectStore:
         return self.root / "config.yaml"
 
     def _write_config(self, config: BoardConfig) -> None:
-        self._config_path().write_text(yaml.dump(config.model_dump(), default_flow_style=False, sort_keys=False))
+        path = self._config_path()
+        with get_lock(path):
+            atomic_write(path, yaml.dump(config.model_dump(), default_flow_style=False, sort_keys=False))
 
     def read_config(self) -> BoardConfig:
         path = self._config_path()
@@ -90,14 +93,18 @@ class ProjectStore:
         project_dir = self.root / "projects" / project
         if not project_dir.exists():
             raise FileNotFoundError(f"Project '{project}' does not exist")
-        (project_dir / "spec.md").write_text(content)
+        path = project_dir / "spec.md"
+        with get_lock(path):
+            atomic_write(path, content)
 
     def update_plan(self, project: str, content: str) -> None:
         project = sanitize_name(project)
         project_dir = self.root / "projects" / project
         if not project_dir.exists():
             raise FileNotFoundError(f"Project '{project}' does not exist")
-        (project_dir / "plan.md").write_text(content)
+        path = project_dir / "plan.md"
+        with get_lock(path):
+            atomic_write(path, content)
 
     def list_projects(self) -> list[str]:
         projects_dir = self.root / "projects"

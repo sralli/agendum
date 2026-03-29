@@ -8,6 +8,7 @@ from mcp.server.fastmcp import FastMCP
 
 from agentpm.config import resolve_root
 from agentpm.models import Agent
+from agentpm.store.agent_store import AgentStore
 from agentpm.store.memory_store import MemoryStore
 from agentpm.store.project_store import ProjectStore
 from agentpm.store.task_store import TaskStore
@@ -23,6 +24,7 @@ class _Stores:
         self._task: TaskStore | None = None
         self._project: ProjectStore | None = None
         self._memory: MemoryStore | None = None
+        self._agent: AgentStore | None = None
         self._root: Path | None = None
 
     @property
@@ -48,6 +50,12 @@ class _Stores:
         if self._memory is None:
             self._memory = MemoryStore(self.root)
         return self._memory
+
+    @property
+    def agent_store(self) -> AgentStore:
+        if self._agent is None:
+            self._agent = AgentStore(self.root)
+        return self._agent
 
 
 stores = _Stores()

@@ -7,10 +7,12 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
+import yaml
 import frontmatter
 
-from agentpm.models import ProgressEntry, Task, TaskPriority, TaskStatus, TaskType
+from agentpm.models import AgentHandoffRecord, ProgressEntry, Task, TaskPriority, TaskStatus, TaskType
 from agentpm.store import sanitize_name
+from agentpm.store.locking import atomic_write, get_lock
 
 _MUTABLE_FIELDS = frozenset(
     {
@@ -27,6 +29,8 @@ _MUTABLE_FIELDS = frozenset(
         "decisions",
         "artifacts",
         "handoff",
+        "structured_handoff",
+        "agent_history",
     }
 )
 
@@ -117,6 +121,46 @@ def _strip_blockquote(text: str) -> str:
     return text.strip()
 
 
+_YAML_BLOCK_RE = re.compile(r"```yaml\s*\n(.*?)```", re.DOTALL)
+
+
+def _parse_structured_handoff(text: str) -> AgentHandoffRecord | None:
+    """Try to parse a fenced YAML block from handoff text into AgentHandoffRecord."""
+    match = _YAML_BLOCK_RE.search(text)
+    if not match:
+        return None
+    try:
+        data = yaml.safe_load(match.group(1))
+        if not isinstance(data, dict):
+            return None
+        return AgentHandoffRecord.model_validate(data)
+    except Exception:
+        return None
+
+
+def _parse_agent_history(text: str) -> list[AgentHandoffRecord]:
+    """Parse agent history section (fenced YAML list) into AgentHandoffRecord list."""
+    match = _YAML_BLOCK_RE.search(text)
+    if not match:
+        return []
+    try:
+        data = yaml.safe_load(match.group(1))
+        if not isinstance(data, list):
+            return []
+        return [AgentHandoffRecord.model_validate(item) for item in data if isinstance(item, dict)]
+    except Exception:
+        return []
+
+
+def _handoff_record_to_yaml(record: AgentHandoffRecord) -> str:
+    """Serialize an AgentHandoffRecord to a YAML dict string."""
+    d = record.model_dump(exclude_none=True)
+    # Convert datetime to ISO string for YAML
+    if "timestamp" in d and hasattr(d["timestamp"], "isoformat"):
+        d["timestamp"] = d["timestamp"].isoformat()
+    return yaml.dump(d, default_flow_style=False, sort_keys=False).rstrip()
+
+
 def _safe_enum(enum_cls, value, default):
     """Safely convert a string to an enum, falling back to default."""
     if value is None:
@@ -142,6 +186,11 @@ def task_from_file(path: Path) -> Task:
     decisions_text = _extract_section(body, "Decisions")
     artifacts_text = _extract_section(body, "Artifacts")
     handoff_raw = _extract_section(body, "Handoff")
+    history_raw = _extract_section(body, "Agent History")
+
+    # Parse structured handoff if present (fenced YAML block); else use legacy free text
+    structured = _parse_structured_handoff(handoff_raw)
+    legacy_handoff = "" if structured else _strip_blockquote(handoff_raw)
 
     return Task(
         id=meta.get("id", path.stem),
@@ -163,7 +212,9 @@ def task_from_file(path: Path) -> Task:
         progress=_parse_progress(progress_text),
         decisions=_extract_list_items(decisions_text),
         artifacts=_extract_list_items(artifacts_text),
-        handoff=_strip_blockquote(handoff_raw),
+        handoff=legacy_handoff,
+        structured_handoff=structured,
+        agent_history=_parse_agent_history(history_raw),
     )
 
 
@@ -213,9 +264,26 @@ def task_to_markdown(task: Task) -> str:
     sections.append("")
 
     sections.append("## Handoff")
-    if task.handoff:
+    if task.structured_handoff:
+        sections.append("```yaml")
+        sections.append(_handoff_record_to_yaml(task.structured_handoff))
+        sections.append("```")
+    elif task.handoff:
         sections.append(f"> {task.handoff}")
     sections.append("")
+
+    if task.agent_history:
+        sections.append("## Agent History")
+        history_data = []
+        for rec in task.agent_history:
+            d = rec.model_dump(exclude_none=True)
+            if "timestamp" in d and hasattr(d["timestamp"], "isoformat"):
+                d["timestamp"] = d["timestamp"].isoformat()
+            history_data.append(d)
+        sections.append("```yaml")
+        sections.append(yaml.dump(history_data, default_flow_style=False, sort_keys=False).rstrip())
+        sections.append("```")
+        sections.append("")
 
     body = "\n".join(sections)
     post = frontmatter.Post(body, **meta)
@@ -240,7 +308,7 @@ class TaskStore:
         path = _task_path(self.root, project, task_id)
 
         # Atomic write: O_CREAT|O_EXCL fails if file exists, retry with new ID
-        for _attempt in range(5):
+        for _attempt in range(20):
             try:
                 fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
                 try:
@@ -253,7 +321,7 @@ class TaskStore:
                 task.id = task_id
                 path = _task_path(self.root, project, task_id)
 
-        raise RuntimeError(f"Failed to create task after 5 retries in project '{project}'")
+        raise RuntimeError(f"Failed to create task after 20 retries in project '{project}'")
 
     def get_task(self, project: str, task_id: str) -> Task | None:
         path = _task_path(self.root, project, task_id)
@@ -288,36 +356,35 @@ class TaskStore:
         return tasks
 
     def update_task(self, project: str, task_id: str, **updates) -> Task | None:
-        """Update whitelisted fields and write back to disk."""
-        task = self.get_task(project, task_id)
-        if not task:
-            return None
-
-        for key, value in updates.items():
-            if key in _MUTABLE_FIELDS:
-                setattr(task, key, value)
-
-        task.updated = datetime.now(UTC)
+        """Update whitelisted fields and write back to disk (locked + atomic)."""
         path = _task_path(self.root, project, task_id)
-        path.write_text(task_to_markdown(task))
+        with get_lock(path):
+            task = self.get_task(project, task_id)
+            if not task:
+                return None
+            for key, value in updates.items():
+                if key in _MUTABLE_FIELDS:
+                    setattr(task, key, value)
+            task.updated = datetime.now(UTC)
+            atomic_write(path, task_to_markdown(task))
         return task
 
     def add_progress(self, project: str, task_id: str, agent: str, message: str) -> Task | None:
-        task = self.get_task(project, task_id)
-        if not task:
-            return None
-
-        task.progress.append(
-            ProgressEntry(
-                timestamp=datetime.now(UTC),
-                agent=agent,
-                message=message,
-            )
-        )
-        task.updated = datetime.now(UTC)
-
+        """Append a progress entry (locked + atomic to prevent concurrent data loss)."""
         path = _task_path(self.root, project, task_id)
-        path.write_text(task_to_markdown(task))
+        with get_lock(path):
+            task = self.get_task(project, task_id)
+            if not task:
+                return None
+            task.progress.append(
+                ProgressEntry(
+                    timestamp=datetime.now(UTC),
+                    agent=agent,
+                    message=message,
+                )
+            )
+            task.updated = datetime.now(UTC)
+            atomic_write(path, task_to_markdown(task))
         return task
 
     def delete_task(self, project: str, task_id: str) -> bool:
