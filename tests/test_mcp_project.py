@@ -58,7 +58,7 @@ async def test_spec_update_happy(mcp_server):
     mcp, stores, _ = mcp_server
     await call(mcp, "pm_board_init")
     await call(mcp, "pm_project_create", name="proj")
-    result = await call(mcp, "pm_spec_update", project="proj", content="# New Spec\n\nUpdated content.")
+    result = await call(mcp, "pm_project_spec_update", project="proj", content="# New Spec\n\nUpdated content.")
     assert "Updated spec" in result
     assert "New Spec" in (stores.root / "projects" / "proj" / "spec.md").read_text()
 
@@ -66,7 +66,7 @@ async def test_spec_update_happy(mcp_server):
 @pytest.mark.asyncio
 async def test_spec_update_not_found(mcp_server):
     mcp, _, _ = mcp_server
-    result = await call(mcp, "pm_spec_update", project="ghost", content="irrelevant")
+    result = await call(mcp, "pm_project_spec_update", project="ghost", content="irrelevant")
     assert "Error:" in result
 
 
@@ -75,7 +75,7 @@ async def test_plan_update_happy(mcp_server):
     mcp, stores, _ = mcp_server
     await call(mcp, "pm_board_init")
     await call(mcp, "pm_project_create", name="proj")
-    result = await call(mcp, "pm_plan_update", project="proj", content="# New Plan")
+    result = await call(mcp, "pm_project_plan_update", project="proj", content="# New Plan")
     assert "Updated plan" in result
     assert "New Plan" in (stores.root / "projects" / "proj" / "plan.md").read_text()
 
@@ -83,7 +83,7 @@ async def test_plan_update_happy(mcp_server):
 @pytest.mark.asyncio
 async def test_plan_update_not_found(mcp_server):
     mcp, _, _ = mcp_server
-    result = await call(mcp, "pm_plan_update", project="ghost", content="irrelevant")
+    result = await call(mcp, "pm_project_plan_update", project="ghost", content="irrelevant")
     assert "Error:" in result
 
 

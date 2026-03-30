@@ -102,12 +102,28 @@ mcp = FastMCP(
 
 # --- Context Enrichment Pipeline ---
 
-enricher = ContextEnricher()
-enricher.register(ProjectRulesSource(stores.root))
-enricher.register(MemorySource(stores.memory))
-enricher.register(HandoffSource(stores.task))
-enricher.register(ReviewHistorySource())
-enricher.register(ExternalReferencesSource(stores.project))
+
+class _LazyEnricher:
+    """Defers enricher source registration until first use."""
+
+    def __init__(self):
+        self._enricher: ContextEnricher | None = None
+
+    def _init(self) -> ContextEnricher:
+        if self._enricher is None:
+            self._enricher = ContextEnricher()
+            self._enricher.register(ProjectRulesSource(stores.root))
+            self._enricher.register(MemorySource(stores.memory))
+            self._enricher.register(HandoffSource(stores.task))
+            self._enricher.register(ReviewHistorySource())
+            self._enricher.register(ExternalReferencesSource(stores.project))
+        return self._enricher
+
+    def enrich(self, *args, **kwargs):
+        return self._init().enrich(*args, **kwargs)
+
+
+enricher = _LazyEnricher()
 
 # Register all tool modules
 board.register(mcp, stores, agents_registry)

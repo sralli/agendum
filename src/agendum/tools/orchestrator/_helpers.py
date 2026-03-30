@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agendum.models import ExecutionStatus, TaskStatus
+from agendum.models import TaskStatus
 from agendum.task_graph import resolve_completions
 
 
@@ -18,10 +18,11 @@ def resolve_and_unblock(stores, project: str, task_id: str) -> list[str]:
 
     Returns list of unblocked task IDs.
     """
-    all_tasks = stores.task.list_tasks(project)
+    all_tasks = stores.task.all_tasks(project)
     unblocked = resolve_completions(all_tasks, task_id)
     for uid in unblocked:
         stores.task.update_task(project, uid, status=TaskStatus.PENDING)
+        stores.task.add_progress(project, uid, "system", f"Auto-unblocked: dependency {task_id} completed")
     return unblocked
 
 
@@ -36,7 +37,7 @@ def check_plan_level_complete(stores, project: str, plan_id: str, task_id: str) 
     if not plan:
         return []
 
-    task_statuses = {t.id: t.status for t in stores.task.list_tasks(project)}
+    task_statuses = {t.id: t.status for t in stores.task.all_tasks(project)}
     for lvl in plan.levels:
         if task_id in lvl.task_ids:
             all_done = all(task_statuses.get(tid, TaskStatus.PENDING) == TaskStatus.DONE for tid in lvl.task_ids)
@@ -44,7 +45,6 @@ def check_plan_level_complete(stores, project: str, plan_id: str, task_id: str) 
                 lines = [f"Level {lvl.level} complete!"]
                 if lvl.is_checkpoint:
                     lines.append("Next level is a checkpoint — call pm_orchestrate_approve to continue.")
-                    stores.plan.update_plan(project, plan_id, status=ExecutionStatus.PAUSED)
                 return lines
             break
     return []

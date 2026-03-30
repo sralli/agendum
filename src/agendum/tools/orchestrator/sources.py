@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from agendum.models import ContextPacket, Task, TaskStatus
+from agendum.models import ContextPacket, ProjectPolicy, Task, TaskStatus
 from agendum.store.memory_store import MemoryStore
 from agendum.store.project_store import ProjectStore
 from agendum.store.task_store import TaskStore
@@ -134,19 +134,37 @@ class ReviewHistorySource:
 
     def enrich(self, packet: ContextPacket, task: Task, project: str) -> ContextPacket:
         failures = []
+        criteria_failed: list[str] = []
+
         for entry in task.progress:
             if "Review FAILED" in entry.message:
                 failures.append(f"- [{entry.timestamp.strftime('%Y-%m-%d %H:%M')}] {entry.message}")
+            if "Criteria failed:" in entry.message:
+                # Parse "Criteria failed: X, Y" into individual criteria
+                _, _, raw = entry.message.partition("Criteria failed:")
+                for criterion in raw.split(","):
+                    criterion = criterion.strip()
+                    if criterion:
+                        criteria_failed.append(criterion)
 
-        if not failures:
+        if not failures and not criteria_failed:
             return packet
+
+        sections: list[str] = []
+        if failures:
+            sections.append("Prior review failures:")
+            sections.extend(failures)
+        if criteria_failed:
+            sections.append("Criteria that failed:")
+            for c in criteria_failed:
+                sections.append(f"- {c}")
 
         pointers = list(packet.pointers)
         pointers.append(f'pm_task_get(project="{project}", task_id="{task.id}")')
 
         return packet.model_copy(
             update={
-                "review_history": "\n".join(failures),
+                "review_history": "\n".join(sections),
                 "pointers": pointers,
             }
         )
@@ -159,9 +177,12 @@ class ExternalReferencesSource:
 
     def __init__(self, project_store: ProjectStore):
         self._store = project_store
+        self._policy_cache: dict[str, ProjectPolicy] = {}
 
     def enrich(self, packet: ContextPacket, task: Task, project: str) -> ContextPacket:
-        policy = self._store.get_policy(project)
+        if project not in self._policy_cache:
+            self._policy_cache[project] = self._store.get_policy(project)
+        policy = self._policy_cache[project]
         if not policy.external_references:
             return packet
 

@@ -223,3 +223,70 @@ async def test_task_handoff_structured_happy(mcp_server):
     detail = await call(mcp, "pm_task_get", project="proj", task_id="task-001")
     assert "Set up database schema" in detail
     assert "Write integration tests" in detail
+
+
+# --- archive + dependency interaction ---
+
+
+@pytest.mark.asyncio
+async def test_claim_after_dependency_archived(mcp_server):
+    """Claiming a task must work even if its dependency was auto-archived."""
+    mcp, _, _ = mcp_server
+    await _setup(mcp)
+    await call(mcp, "pm_task_create", project="proj", title="First")
+    await call(mcp, "pm_task_create", project="proj", title="Second", depends_on=["task-001"])
+    # Complete task-001 (auto-archives it)
+    result = await call(mcp, "pm_task_complete", project="proj", task_id="task-001")
+    assert "archived" in result
+    # Claim task-002 — should succeed despite task-001 being archived
+    result = await call(mcp, "pm_task_claim", project="proj", task_id="task-002", agent_id="agent-1")
+    assert "Claimed task-002" in result
+
+
+@pytest.mark.asyncio
+async def test_complete_chain_with_archived_deps(mcp_server):
+    """Completing a task unblocks dependents even when earlier deps are archived."""
+    mcp, _, _ = mcp_server
+    await _setup(mcp)
+    await call(mcp, "pm_task_create", project="proj", title="First")
+    await call(mcp, "pm_task_create", project="proj", title="Second")
+    await call(mcp, "pm_task_create", project="proj", title="Third", depends_on=["task-001", "task-002"])
+    # Block task-003 explicitly
+    await call(mcp, "pm_task_block", project="proj", task_id="task-003", reason="waiting")
+    # Complete task-001 (auto-archives)
+    await call(mcp, "pm_task_complete", project="proj", task_id="task-001")
+    # Complete task-002 — should unblock task-003 even though task-001 is archived
+    result = await call(mcp, "pm_task_complete", project="proj", task_id="task-002")
+    assert "Unblocked: task-003" in result
+
+
+@pytest.mark.asyncio
+async def test_next_with_archived_deps(mcp_server):
+    """suggest_next_task works when dependencies are archived."""
+    mcp, _, _ = mcp_server
+    await _setup(mcp)
+    await call(mcp, "pm_task_create", project="proj", title="First")
+    await call(mcp, "pm_task_create", project="proj", title="Second", depends_on=["task-001"])
+    # Complete task-001 (auto-archives)
+    await call(mcp, "pm_task_complete", project="proj", task_id="task-001")
+    # pm_task_next should suggest task-002
+    result = await call(mcp, "pm_task_next", project="proj")
+    assert "Second" in result
+
+
+# --- pm_check_deps + archived dependencies ---
+
+
+@pytest.mark.asyncio
+async def test_check_deps_recognizes_archived_deps(mcp_server):
+    """pm_check_deps shows task-002 as unblocked when its dep (task-001) is archived."""
+    mcp, _, _ = mcp_server
+    await _setup(mcp)
+    await call(mcp, "pm_task_create", project="proj", title="First")
+    await call(mcp, "pm_task_create", project="proj", title="Second", depends_on=["task-001"])
+    # Complete task-001 (auto-archives it)
+    await call(mcp, "pm_task_complete", project="proj", task_id="task-001")
+    # pm_check_deps should show task-002 as ready (unblocked)
+    result = await call(mcp, "pm_check_deps", project="proj")
+    assert "task-002" in result
+    assert "Ready to start" in result

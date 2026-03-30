@@ -148,7 +148,6 @@ _PRIORITY_ORDER = {
 
 def suggest_next_task(
     tasks: list[Task],
-    agent_type: str | None = None,
     preferred_types: list[str] | None = None,
 ) -> Task | None:
     """Suggest the best next task to work on.
@@ -167,7 +166,7 @@ def suggest_next_task(
         priority_score = _PRIORITY_ORDER.get(task.priority, 2)
 
         type_match = 0
-        task_type_str = task.type.value if hasattr(task.type, "value") else str(task.type)
+        task_type_str = task.type.value
         if preferred_types and task_type_str in preferred_types:
             type_match = -1  # Negative = better (for sorting)
 

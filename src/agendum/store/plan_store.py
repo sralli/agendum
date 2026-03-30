@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -10,6 +11,8 @@ import yaml
 from agendum.models import ExecutionPlan
 from agendum.store import sanitize_name
 from agendum.store.locking import atomic_create, atomic_write, get_lock, next_sequential_id
+
+logger = logging.getLogger(__name__)
 
 
 class PlanStore:
@@ -82,5 +85,6 @@ class PlanStore:
                 data = yaml.safe_load(path.read_text()) or {}
                 plans.append(ExecutionPlan.model_validate(data))
             except Exception:
+                logger.warning("Failed to parse plan file: %s", path)
                 continue
         return plans

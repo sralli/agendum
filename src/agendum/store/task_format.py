@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -10,6 +11,8 @@ import frontmatter
 import yaml
 
 from agendum.models import AgentHandoffRecord, ProgressEntry, Task, TaskPriority, TaskStatus, TaskType
+
+logger = logging.getLogger(__name__)
 
 # --- Helpers ---
 
@@ -74,31 +77,39 @@ def _strip_blockquote(text: str) -> str:
 _YAML_BLOCK_RE = re.compile(r"```yaml\s*\n(.*?)```", re.DOTALL)
 
 
-def _parse_structured_handoff(text: str) -> AgentHandoffRecord | None:
-    """Try to parse a fenced YAML block from handoff text into AgentHandoffRecord."""
+def _load_yaml_block(text: str):
+    """Extract and parse a fenced YAML block from markdown text."""
     match = _YAML_BLOCK_RE.search(text)
     if not match:
         return None
     try:
-        data = yaml.safe_load(match.group(1))
-        if not isinstance(data, dict):
-            return None
+        return yaml.safe_load(match.group(1))
+    except Exception:
+        logger.warning("Failed to parse YAML block")
+        return None
+
+
+def _parse_structured_handoff(text: str) -> AgentHandoffRecord | None:
+    """Try to parse a fenced YAML block from handoff text into AgentHandoffRecord."""
+    data = _load_yaml_block(text)
+    if not isinstance(data, dict):
+        return None
+    try:
         return AgentHandoffRecord.model_validate(data)
     except Exception:
+        logger.warning("Failed to validate structured handoff")
         return None
 
 
 def _parse_agent_history(text: str) -> list[AgentHandoffRecord]:
     """Parse agent history section (fenced YAML list) into AgentHandoffRecord list."""
-    match = _YAML_BLOCK_RE.search(text)
-    if not match:
+    data = _load_yaml_block(text)
+    if not isinstance(data, list):
         return []
     try:
-        data = yaml.safe_load(match.group(1))
-        if not isinstance(data, list):
-            return []
         return [AgentHandoffRecord.model_validate(item) for item in data if isinstance(item, dict)]
     except Exception:
+        logger.warning("Failed to validate agent history")
         return []
 
 
@@ -156,6 +167,10 @@ def task_from_file(path: Path) -> Task:
         blocks=_ensure_list(meta.get("blocks")),
         acceptance_criteria=_ensure_list(meta.get("acceptanceCriteria")),
         tags=_ensure_list(meta.get("tags")),
+        review_checklist=_ensure_list(meta.get("reviewChecklist")),
+        test_requirements=_ensure_list(meta.get("testRequirements")),
+        key_files=_ensure_list(meta.get("keyFiles")),
+        constraints=_ensure_list(meta.get("constraints")),
         created=meta.get("created", datetime.now(UTC)),
         updated=meta.get("updated", datetime.now(UTC)),
         context=context,
@@ -184,6 +199,10 @@ def task_to_markdown(task: Task) -> str:
         "blocks": task.blocks,
         "acceptanceCriteria": task.acceptance_criteria,
         "tags": task.tags,
+        "reviewChecklist": task.review_checklist,
+        "testRequirements": task.test_requirements,
+        "keyFiles": task.key_files,
+        "constraints": task.constraints,
         "created": task.created.isoformat() if isinstance(task.created, datetime) else task.created,
         "updated": task.updated.isoformat() if isinstance(task.updated, datetime) else task.updated,
     }

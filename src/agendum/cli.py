@@ -142,7 +142,7 @@ def next(ctx: click.Context, project: str) -> None:
     """Suggest the next task to work on."""
     root = ctx.obj["root"]
     store = TaskStore(root)
-    tasks = store.list_tasks(project)
+    tasks = store.all_tasks(project)
     task = suggest_next_task(tasks)
 
     if not task:

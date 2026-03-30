@@ -39,7 +39,7 @@ def register(mcp, stores, agents):
         return f"# Project: {p.name}\n\n## Spec\n{p.spec}\n\n## Plan\n{p.plan}"
 
     @mcp.tool()
-    def pm_spec_update(project: str, content: str) -> str:
+    def pm_project_spec_update(project: str, content: str) -> str:
         """Update a project's spec.md (living specification).
 
         The spec should contain requirements, design decisions, and acceptance
@@ -52,7 +52,7 @@ def register(mcp, stores, agents):
         return f"Updated spec for '{project}'."
 
     @mcp.tool()
-    def pm_plan_update(project: str, content: str) -> str:
+    def pm_project_plan_update(project: str, content: str) -> str:
         """Update a project's plan.md (task decomposition strategy).
 
         The plan should outline how the spec will be implemented — what tasks

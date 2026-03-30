@@ -3,12 +3,14 @@
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from agendum.models import TaskStatus
 from agendum.store.task_store import TaskStore
 
 
 def _tmp_root():
-    return Path(tempfile.mkdtemp()) / ".agentpm"
+    return Path(tempfile.mkdtemp()) / ".agendum"
 
 
 class TestTaskStore:
@@ -123,7 +125,93 @@ class TestTaskStore:
         assert "Login works" in task.acceptance_criteria
 
 
+class TestArchive:
+    def test_archive_done_task(self):
+        store = TaskStore(_tmp_root())
+        store.create_task("demo", "Done task")
+        store.update_task("demo", "task-001", status=TaskStatus.DONE)
+        task = store.archive_task("demo", "task-001")
+        assert task.title == "Done task"
+        # No longer in active list
+        assert len(store.list_tasks("demo")) == 0
+        # Still accessible via get_task (falls back to archive)
+        assert store.get_task("demo", "task-001") is not None
+
+    def test_archive_cancelled_task(self):
+        store = TaskStore(_tmp_root())
+        store.create_task("demo", "Cancelled task")
+        store.update_task("demo", "task-001", status=TaskStatus.CANCELLED)
+        store.archive_task("demo", "task-001")
+        assert len(store.list_tasks("demo")) == 0
+        assert store.get_task("demo", "task-001") is not None
+
+    def test_archive_pending_task_fails(self):
+        store = TaskStore(_tmp_root())
+        store.create_task("demo", "Pending task")
+        with pytest.raises(ValueError, match="pending"):
+            store.archive_task("demo", "task-001")
+
+    def test_archive_nonexistent_task_fails(self):
+        store = TaskStore(_tmp_root())
+        store.ensure_project("demo")
+        with pytest.raises(FileNotFoundError):
+            store.archive_task("demo", "task-999")
+
+    def test_list_archived_tasks(self):
+        store = TaskStore(_tmp_root())
+        store.create_task("demo", "A")
+        store.create_task("demo", "B")
+        store.create_task("demo", "C")
+        store.update_task("demo", "task-001", status=TaskStatus.DONE)
+        store.update_task("demo", "task-002", status=TaskStatus.CANCELLED)
+        store.archive_task("demo", "task-001")
+        store.archive_task("demo", "task-002")
+
+        archived = store.list_archived_tasks("demo")
+        assert len(archived) == 2
+        assert {t.id for t in archived} == {"task-001", "task-002"}
+
+        # Active list only has task-003
+        active = store.list_tasks("demo")
+        assert len(active) == 1
+        assert active[0].id == "task-003"
+
+    def test_list_archived_empty(self):
+        store = TaskStore(_tmp_root())
+        store.create_task("demo", "Active")
+        assert store.list_archived_tasks("demo") == []
+
+    def test_list_archived_with_filter(self):
+        store = TaskStore(_tmp_root())
+        store.create_task("demo", "Done task")
+        store.create_task("demo", "Cancelled task")
+        store.update_task("demo", "task-001", status=TaskStatus.DONE)
+        store.update_task("demo", "task-002", status=TaskStatus.CANCELLED)
+        store.archive_task("demo", "task-001")
+        store.archive_task("demo", "task-002")
+
+        done_only = store.list_archived_tasks("demo", status=TaskStatus.DONE)
+        assert len(done_only) == 1
+        assert done_only[0].id == "task-001"
+
+
 class TestRoundTrip:
+    def test_new_metadata_fields_roundtrip(self):
+        store = TaskStore(_tmp_root())
+        original = store.create_task(
+            "demo",
+            "Metadata test",
+            review_checklist=["Check A", "Check B"],
+            test_requirements=["test_foo passes", "test_bar passes"],
+            key_files=["src/main.py", "tests/test_main.py"],
+            constraints=["Do not modify config.py"],
+        )
+        recovered = store.get_task("demo", original.id)
+        assert recovered.review_checklist == ["Check A", "Check B"]
+        assert recovered.test_requirements == ["test_foo passes", "test_bar passes"]
+        assert recovered.key_files == ["src/main.py", "tests/test_main.py"]
+        assert recovered.constraints == ["Do not modify config.py"]
+
     def test_markdown_roundtrip(self):
         """Task -> Markdown -> Task should preserve all fields."""
         store = TaskStore(_tmp_root())

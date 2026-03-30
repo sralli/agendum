@@ -109,11 +109,10 @@ def register(mcp, stores, agents):
         ]
 
         # Build context packets
-        spec_excerpt = proj.spec[:2000] if proj.spec else ""
         task_map = {t.id: t for t in created_tasks}
         context_packets = {}
-        for t in created_tasks:
-            td = task_defs[created_tasks.index(t)]
+        for i, t in enumerate(created_tasks):
+            td = task_defs[i]
             dep_summary = (
                 "\n".join(f"- {d}: {task_map[d].title}" for d in t.depends_on if d in task_map) or "No dependencies"
             )
@@ -121,12 +120,13 @@ def register(mcp, stores, agents):
             context_packets[t.id] = ContextPacket(
                 task_id=t.id,
                 goal=t.title,
-                spec_excerpt=spec_excerpt,
                 acceptance_criteria=t.acceptance_criteria,
                 key_files=td.get("key_files", [])[:10],
                 dependencies_summary=dep_summary,
                 constraints=td.get("constraints", []),
-                review_checklist=td.get("acceptance_criteria", []),
+                task_type=t.type.value,
+                task_priority=t.priority.value,
+                test_requirements=t.test_requirements if hasattr(t, "test_requirements") else [],
             )
 
         # Create the plan
@@ -177,7 +177,7 @@ def register(mcp, stores, agents):
         if not plan:
             return f"Error: plan '{plan_id}' not found in project '{project}'"
 
-        all_tasks = stores.task.list_tasks(project)
+        all_tasks = stores.task.all_tasks(project)
         task_map = {t.id: t for t in all_tasks}
 
         lines = [

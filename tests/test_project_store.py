@@ -7,7 +7,7 @@ from agendum.store.project_store import ProjectStore
 
 
 def _tmp_root():
-    return Path(tempfile.mkdtemp()) / ".agentpm"
+    return Path(tempfile.mkdtemp()) / ".agendum"
 
 
 class TestProjectStore:

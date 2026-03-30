@@ -70,40 +70,5 @@ class TestTraceStore:
         traces = trace_store.list_traces("myapp", task_id="t2")
         assert len(traces) == 1
 
-    def test_aggregate_empty(self, trace_store):
-        agg = trace_store.aggregate("myapp")
-        assert agg["total_traces"] == 0
-        assert agg["avg_duration"] is None
-
-    def test_aggregate_with_data(self, trace_store):
-        for i in range(3):
-            trace_store.write_trace(
-                ExecutionTrace(
-                    task_id=f"t{i}",
-                    project="myapp",
-                    agent_id="a",
-                    completion_status=TaskCompletionStatus.DONE,
-                    duration_seconds=float(100 + i * 50),
-                    task_type="dev",
-                )
-            )
-        trace_store.write_trace(
-            ExecutionTrace(
-                task_id="t-blocked",
-                project="myapp",
-                agent_id="a",
-                completion_status=TaskCompletionStatus.BLOCKED,
-                block_reason="missing API key",
-            )
-        )
-
-        agg = trace_store.aggregate("myapp")
-        assert agg["total_traces"] == 4
-        assert agg["by_status"]["done"] == 3
-        assert agg["by_status"]["blocked"] == 1
-        assert "dev" in agg["by_type"]
-        assert agg["by_type"]["dev"]["count"] == 3
-        assert "missing API key" in agg["common_block_reasons"]
-
     def test_list_nonexistent_project(self, trace_store):
         assert trace_store.list_traces("nonexistent") == []

@@ -1,6 +1,6 @@
 """Tests for dependency resolution engine."""
 
-from agendum.models import Task, TaskStatus
+from agendum.models import Task, TaskStatus, TaskType
 from agendum.task_graph import (
     detect_cycles,
     find_unblocked_tasks,
@@ -138,8 +138,8 @@ class TestSuggestNext:
             _task("t1", priority="medium"),
             _task("t2", priority="medium"),
         ]
-        tasks[0].type = "dev"
-        tasks[1].type = "docs"
+        tasks[0].type = TaskType.DEV
+        tasks[1].type = TaskType.DOCS
         result = suggest_next_task(tasks, preferred_types=["docs"])
         assert result is not None
         assert result.id == "t2"

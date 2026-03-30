@@ -17,6 +17,9 @@ class ProjectStore:
     def __init__(self, root: Path):
         self.root = root
 
+    def _project_dir(self, project: str) -> Path:
+        return self.root / "projects" / sanitize_name(project)
+
     def init_board(self, name: str = "agendum") -> BoardConfig:
         """Initialize .agendum/ directory structure."""
         self.root.mkdir(parents=True, exist_ok=True)
@@ -46,7 +49,7 @@ class ProjectStore:
     def create_project(self, name: str, description: str = "") -> Project:
         """Create a new project with directory structure."""
         name = sanitize_name(name)
-        project_dir = self.root / "projects" / name
+        project_dir = self._project_dir(name)
         project_dir.mkdir(parents=True, exist_ok=True)
         (project_dir / "tasks").mkdir(exist_ok=True)
 
@@ -72,7 +75,7 @@ class ProjectStore:
 
     def get_project(self, name: str) -> Project | None:
         name = sanitize_name(name)
-        project_dir = self.root / "projects" / name
+        project_dir = self._project_dir(name)
         if not project_dir.exists():
             return None
 
@@ -90,7 +93,7 @@ class ProjectStore:
 
     def update_spec(self, project: str, content: str) -> None:
         project = sanitize_name(project)
-        project_dir = self.root / "projects" / project
+        project_dir = self._project_dir(project)
         if not project_dir.exists():
             raise FileNotFoundError(f"Project '{project}' does not exist")
         path = project_dir / "spec.md"
@@ -99,7 +102,7 @@ class ProjectStore:
 
     def update_plan(self, project: str, content: str) -> None:
         project = sanitize_name(project)
-        project_dir = self.root / "projects" / project
+        project_dir = self._project_dir(project)
         if not project_dir.exists():
             raise FileNotFoundError(f"Project '{project}' does not exist")
         path = project_dir / "plan.md"
@@ -113,7 +116,7 @@ class ProjectStore:
         return sorted(d.name for d in projects_dir.iterdir() if d.is_dir())
 
     def _policy_path(self, project: str) -> Path:
-        return self.root / "projects" / sanitize_name(project) / "policy.yaml"
+        return self._project_dir(project) / "policy.yaml"
 
     def get_policy(self, project: str) -> ProjectPolicy:
         """Load project policy, returning defaults if no file exists."""
@@ -126,7 +129,7 @@ class ProjectStore:
     def update_policy(self, project: str, **updates) -> ProjectPolicy:
         """Update policy fields and persist to disk."""
         project = sanitize_name(project)
-        project_dir = self.root / "projects" / project
+        project_dir = self._project_dir(project)
         if not project_dir.exists():
             raise FileNotFoundError(f"Project '{project}' does not exist")
         path = self._policy_path(project)

@@ -30,13 +30,16 @@ def register(mcp, stores, agents):
         """
         projects = stores.project.list_projects()
         total = 0
+        archived_total = 0
         by_status: dict[str, int] = {}
         blocked: list[str] = []
         recent: list[str] = []
 
         for proj in projects:
             tasks = stores.task.list_tasks(proj)
+            archived = stores.task.list_archived_tasks(proj)
             total += len(tasks)
+            archived_total += len(archived)
             for t in tasks:
                 by_status[t.status.value] = by_status.get(t.status.value, 0) + 1
                 if t.status == TaskStatus.BLOCKED:
@@ -44,6 +47,8 @@ def register(mcp, stores, agents):
                 if t.progress:
                     last = t.progress[-1]
                     recent.append(f"[{last.timestamp.strftime('%m-%d %H:%M')}] {t.id}: {last.message}")
+            for t in archived:
+                by_status[t.status.value] = by_status.get(t.status.value, 0) + 1
 
         recent.sort(reverse=True)
         active = [a.id for a in agents.values() if a.status == "active"]
@@ -51,7 +56,7 @@ def register(mcp, stores, agents):
         lines = [
             "# Board Status",
             f"Projects: {', '.join(projects) or 'none'}",
-            f"Total tasks: {total}",
+            f"Total tasks: {total} active, {archived_total} archived",
             f"By status: {json.dumps(by_status)}",
             f"Blocked: {', '.join(blocked) or 'none'}",
             f"Active agents: {', '.join(active) or 'none'}",

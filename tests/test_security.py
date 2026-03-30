@@ -12,7 +12,7 @@ from agendum.store.task_store import TaskStore
 
 
 def _tmp_root():
-    return Path(tempfile.mkdtemp()) / ".agentpm"
+    return Path(tempfile.mkdtemp()) / ".agendum"
 
 
 class TestSanitizeName:

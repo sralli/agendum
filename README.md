@@ -129,7 +129,7 @@ agendum status                                  # Dashboard overview
 | Group | Tools | Purpose |
 |-------|-------|---------|
 | **Board** | `pm_board_init`, `pm_board_status` | Initialize and overview |
-| **Projects** | `pm_project_create`, `pm_project_list`, `pm_project_get`, `pm_spec_update`, `pm_plan_update` | Multi-project management with living specs |
+| **Projects** | `pm_project_create`, `pm_project_list`, `pm_project_get`, `pm_project_spec_update`, `pm_project_plan_update` | Multi-project management with living specs |
 | **Tasks** | `pm_task_create`, `pm_task_list`, `pm_task_get`, `pm_task_claim`, `pm_task_progress`, `pm_task_complete`, `pm_task_block`, `pm_task_handoff`, `pm_task_next` | Full task lifecycle with dependencies |
 | **Memory** | `pm_memory_read`, `pm_memory_write`, `pm_memory_append`, `pm_memory_search` | Cross-session knowledge persistence |
 | **Agents** | `pm_agent_register`, `pm_agent_heartbeat`, `pm_agent_list`, `pm_agent_suggest` | Multi-agent coordination and routing |

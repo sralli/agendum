@@ -52,14 +52,14 @@ def register(mcp, stores, agents):
         """Signal that an agent is still actively working. Call periodically during long tasks."""
         if agent_id not in agents:
             return f"Agent '{agent_id}' not registered. Use pm_agent_register first."
-        agents[agent_id].last_heartbeat = datetime.now(UTC)
+        agents[agent_id].last_seen = datetime.now(UTC)
         agents[agent_id].status = "active"
 
         # Persist updated last_seen
         existing = stores.agent_store.load(agent_id)
         if existing:
             existing.last_seen = datetime.now(UTC)
-            existing.last_task = agents[agent_id].current_task
+            existing.last_task = agents[agent_id].last_task
             stores.agent_store.save(existing)
 
         return f"Heartbeat recorded for '{agent_id}'."
@@ -76,7 +76,7 @@ def register(mcp, stores, agents):
 
         # Current-session agents
         for a in agents.values():
-            task_str = f" working on {a.current_task}" if a.current_task else ""
+            task_str = f" working on {a.last_task}" if a.last_task else ""
             lines.append(f"  {a.id} ({a.type}) — {a.status}{task_str} [this session]")
 
         # Disk agents from previous sessions

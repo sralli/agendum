@@ -24,8 +24,8 @@ from agendum.tools.orchestrator.sources import (
 
 @pytest.fixture
 def tmp_root(tmp_path: Path) -> Path:
-    """Create a temporary .agentpm root directory."""
-    root = tmp_path / ".agentpm"
+    """Create a temporary .agendum root directory."""
+    root = tmp_path / ".agendum"
     root.mkdir()
     return root
 
@@ -33,7 +33,7 @@ def tmp_root(tmp_path: Path) -> Path:
 @pytest_asyncio.fixture
 async def mcp_server(tmp_path: Path):
     """Fresh FastMCP instance with isolated stores, wired for all tool modules."""
-    root = tmp_path / ".agentpm"
+    root = tmp_path / ".agendum"
     root.mkdir()
 
     stores = _Stores()
@@ -51,7 +51,7 @@ async def mcp_server(tmp_path: Path):
     enricher.register(ReviewHistorySource())
     enricher.register(ExternalReferencesSource(stores.project))
 
-    mcp = FastMCP("agentpm-test")
+    mcp = FastMCP("agendum-test")
     board.register(mcp, stores, agents_registry)
     project.register(mcp, stores, agents_registry)
     task.register(mcp, stores, agents_registry)
