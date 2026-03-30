@@ -18,7 +18,7 @@ def resolve_and_unblock(stores, project: str, task_id: str) -> list[str]:
 
     Returns list of unblocked task IDs.
     """
-    all_tasks = stores.task.list_tasks(project)
+    all_tasks = stores.task.all_tasks(project)
     unblocked = resolve_completions(all_tasks, task_id)
     for uid in unblocked:
         stores.task.update_task(project, uid, status=TaskStatus.PENDING)
@@ -36,7 +36,7 @@ def check_plan_level_complete(stores, project: str, plan_id: str, task_id: str) 
     if not plan:
         return []
 
-    task_statuses = {t.id: t.status for t in stores.task.list_tasks(project)}
+    task_statuses = {t.id: t.status for t in stores.task.all_tasks(project)}
     for lvl in plan.levels:
         if task_id in lvl.task_ids:
             all_done = all(task_statuses.get(tid, TaskStatus.PENDING) == TaskStatus.DONE for tid in lvl.task_ids)

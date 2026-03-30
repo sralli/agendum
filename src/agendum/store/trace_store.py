@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import yaml
@@ -9,6 +10,8 @@ import yaml
 from agendum.models import ExecutionTrace
 from agendum.store import sanitize_name
 from agendum.store.locking import atomic_write, get_lock
+
+logger = logging.getLogger(__name__)
 
 
 class TraceStore:
@@ -63,7 +66,8 @@ class TraceStore:
                     continue
                 traces.append(trace)
             except Exception:
-                continue  # skip malformed trace files
+                logger.warning("Failed to parse trace file: %s", path)
+                continue
         return traces
 
     def aggregate(self, project: str) -> dict:

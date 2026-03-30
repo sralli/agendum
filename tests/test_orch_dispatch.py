@@ -114,6 +114,48 @@ class TestOrchestrateReport:
         )
         assert "Unblocked" in result
 
+    async def test_report_with_verification_evidence(self, setup):
+        mcp, stores, _ = setup
+        await _create_and_approve(mcp, "myapp", "Test", [{"title": "Verified task"}])
+        tasks = stores.task.list_tasks("myapp")
+        result = await call(
+            mcp,
+            "pm_orchestrate_report",
+            project="myapp",
+            task_id=tasks[0].id,
+            status="done",
+            plan_id="plan-001",
+            tests_run="test_foo,test_bar",
+            tests_passed=True,
+            criteria_addressed="AC1,AC2",
+        )
+        assert "Tests: test_foo, test_bar" in result
+        assert "passed" in result
+        assert "Criteria addressed: AC1, AC2" in result
+        traces = stores.trace.list_traces("myapp")
+        assert traces[0].tests_run == ["test_foo", "test_bar"]
+        assert traces[0].tests_passed is True
+        assert traces[0].criteria_addressed == ["AC1", "AC2"]
+
+    async def test_report_with_failed_tests(self, setup):
+        mcp, stores, _ = setup
+        await _create_and_approve(mcp, "myapp", "Test", [{"title": "Failed task"}])
+        tasks = stores.task.list_tasks("myapp")
+        result = await call(
+            mcp,
+            "pm_orchestrate_report",
+            project="myapp",
+            task_id=tasks[0].id,
+            status="done_with_concerns",
+            concerns="Tests failing",
+            tests_run="test_integration",
+            tests_passed=False,
+        )
+        assert "Tests: test_integration" in result
+        assert "FAILED" in result
+        traces = stores.trace.list_traces("myapp")
+        assert traces[0].tests_passed is False
+
     async def test_invalid_status(self, setup):
         mcp, _, _ = setup
         result = await call(

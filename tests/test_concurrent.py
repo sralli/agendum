@@ -11,7 +11,7 @@ from agendum.store.task_store import TaskStore
 
 def test_concurrent_add_progress_no_data_loss(tmp_path: Path) -> None:
     """20 threads adding progress to the same task must all survive."""
-    root = tmp_path / ".agentpm"
+    root = tmp_path / ".agendum"
     root.mkdir()
     store = TaskStore(root)
     store.ensure_project("demo")
@@ -39,7 +39,7 @@ def test_concurrent_add_progress_no_data_loss(tmp_path: Path) -> None:
 
 def test_concurrent_create_task_unique_ids(tmp_path: Path) -> None:
     """10 threads creating tasks simultaneously must produce unique IDs."""
-    root = tmp_path / ".agentpm"
+    root = tmp_path / ".agendum"
     root.mkdir()
     store = TaskStore(root)
     store.ensure_project("demo")
@@ -69,7 +69,7 @@ def test_concurrent_create_task_unique_ids(tmp_path: Path) -> None:
 
 def test_concurrent_memory_append_no_data_loss(tmp_path: Path) -> None:
     """20 threads appending to the same memory scope must all survive."""
-    root = tmp_path / ".agentpm"
+    root = tmp_path / ".agendum"
     root.mkdir()
     (root / "memory").mkdir()
     store = MemoryStore(root)

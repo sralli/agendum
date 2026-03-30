@@ -148,7 +148,6 @@ _PRIORITY_ORDER = {
 
 def suggest_next_task(
     tasks: list[Task],
-    agent_type: str | None = None,
     preferred_types: list[str] | None = None,
 ) -> Task | None:
     """Suggest the best next task to work on.

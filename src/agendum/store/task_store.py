@@ -7,7 +7,7 @@ from pathlib import Path
 
 from agendum.models import ProgressEntry, Task, TaskStatus
 from agendum.store import sanitize_name
-from agendum.store.locking import atomic_create, atomic_write, get_lock, next_sequential_id
+from agendum.store.locking import atomic_create, atomic_write, get_lock
 from agendum.store.task_format import task_from_file, task_to_markdown
 
 _MUTABLE_FIELDS = frozenset(
@@ -21,6 +21,10 @@ _MUTABLE_FIELDS = frozenset(
         "blocks",
         "acceptance_criteria",
         "tags",
+        "review_checklist",
+        "test_requirements",
+        "key_files",
+        "constraints",
         "context",
         "decisions",
         "artifacts",
@@ -43,8 +47,21 @@ def _task_path(root: Path, project: str, task_id: str) -> Path:
 
 
 def _next_task_id(root: Path, project: str) -> str:
-    """Generate next sequential task ID like task-001, task-002."""
-    return next_sequential_id(_tasks_dir(root, project), "task", "md")
+    """Generate next sequential task ID, scanning both active and archived tasks."""
+    tasks_dir = _tasks_dir(root, project)
+    archive_dir = tasks_dir / "done"
+    max_num = 0
+    for d in [tasks_dir, archive_dir]:
+        if not d.exists():
+            continue
+        for path in d.glob("task-*.md"):
+            parts = path.stem.split("-", 1)
+            if len(parts) == 2:
+                try:
+                    max_num = max(max_num, int(parts[1]))
+                except ValueError:
+                    continue
+    return f"task-{max_num + 1:03d}"
 
 
 class TaskStore:
@@ -116,9 +133,9 @@ class TaskStore:
         """Update whitelisted fields and write back to disk (locked + atomic)."""
         path = _task_path(self.root, project, task_id)
         with get_lock(path):
-            task = self.get_task(project, task_id)
-            if not task:
-                return None
+            if not path.exists():
+                return None  # Don't update archived tasks via active path
+            task = task_from_file(path)
             for key, value in updates.items():
                 if key in _MUTABLE_FIELDS:
                     setattr(task, key, value)
@@ -146,7 +163,84 @@ class TaskStore:
 
     def delete_task(self, project: str, task_id: str) -> bool:
         path = _task_path(self.root, project, task_id)
-        if path.exists():
+        with get_lock(path):
+            if not path.exists():
+                return False
             path.unlink()
-            return True
-        return False
+        Path(str(path) + ".lock").unlink(missing_ok=True)
+        return True
+
+    def archive_task(self, project: str, task_id: str) -> Task:
+        """Move a done/cancelled task from tasks/ to tasks/done/."""
+        path = _task_path(self.root, project, task_id)
+        with get_lock(path):
+            if not path.exists():
+                raise FileNotFoundError(f"Task '{task_id}' not found in active tasks.")
+            task = task_from_file(path)
+            if task.status not in (TaskStatus.DONE, TaskStatus.CANCELLED):
+                raise ValueError(
+                    f"Cannot archive '{task_id}': status is {task.status.value}, must be done or cancelled."
+                )
+            archive_dir = _tasks_dir(self.root, project) / "done"
+            archive_dir.mkdir(parents=True, exist_ok=True)
+            dest = archive_dir / f"{sanitize_name(task_id)}.md"
+            content = path.read_text()
+            atomic_write(dest, content)
+            path.unlink()
+        # Clean up orphaned lock sidecar
+        Path(str(path) + ".lock").unlink(missing_ok=True)
+        return task
+
+    def unarchive_task(self, project: str, task_id: str) -> Task:
+        """Move a task from tasks/done/ back to tasks/."""
+        archive_path = _tasks_dir(self.root, project) / "done" / f"{sanitize_name(task_id)}.md"
+        with get_lock(archive_path):
+            if not archive_path.exists():
+                raise FileNotFoundError(f"Task '{task_id}' not found in archive.")
+            task = task_from_file(archive_path)
+            dest = _task_path(self.root, project, task_id)
+            content = archive_path.read_text()
+            atomic_write(dest, content)
+            archive_path.unlink()
+        # Clean up orphaned lock sidecar
+        Path(str(archive_path) + ".lock").unlink(missing_ok=True)
+        return task
+
+    def all_tasks(
+        self,
+        project: str,
+        status: TaskStatus | None = None,
+        assigned: str | None = None,
+        tag: str | None = None,
+        task_type: str | None = None,
+    ) -> list[Task]:
+        """Return active + archived tasks. Use for dependency resolution."""
+        return self.list_tasks(project, status=status, assigned=assigned, tag=tag, task_type=task_type) + \
+            self.list_archived_tasks(project, status=status, assigned=assigned, tag=tag, task_type=task_type)
+
+    def list_archived_tasks(
+        self,
+        project: str,
+        status: TaskStatus | None = None,
+        assigned: str | None = None,
+        tag: str | None = None,
+        task_type: str | None = None,
+    ) -> list[Task]:
+        """List tasks in the archive (tasks/done/) with optional filters."""
+        archive_dir = _tasks_dir(self.root, project) / "done"
+        if not archive_dir.exists():
+            return []
+
+        tasks = []
+        for path in sorted(archive_dir.glob("task-*.md")):
+            task = task_from_file(path)
+            if status and task.status != status:
+                continue
+            if assigned and task.assigned != assigned:
+                continue
+            if tag and tag not in task.tags:
+                continue
+            if task_type and task.type.value != task_type:
+                continue
+            tasks.append(task)
+        return tasks

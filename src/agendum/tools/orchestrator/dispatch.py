@@ -38,6 +38,17 @@ def _render_task_dispatch(packet: ContextPacket, task: Task, status: TaskStatus)
         for c in packet.constraints:
             lines.append(f"  - {c}")
 
+    if packet.task_type:
+        lines.append(f"**Type:** {packet.task_type}")
+    if packet.task_priority:
+        lines.append(f"**Priority:** {packet.task_priority}")
+    if packet.test_requirements:
+        lines.append("**Test Requirements:**")
+        for tr in packet.test_requirements:
+            lines.append(f"  - {tr}")
+    if packet.previous_attempts > 0:
+        lines.append(f"**Previous Attempts:** {packet.previous_attempts}")
+
     # Enrichment sections
     if packet.project_rules:
         lines.append("**Project Rules:**")
@@ -92,7 +103,7 @@ def register(mcp, stores, agents, enricher=None):
             stores.plan.update_plan(project, plan_id, status=ExecutionStatus.EXECUTING)
 
         # Find the current level (first level with incomplete tasks)
-        all_tasks = stores.task.list_tasks(project)
+        all_tasks = stores.task.all_tasks(project)
         task_status_map = {t.id: t.status for t in all_tasks}
 
         current_level = None
@@ -172,6 +183,9 @@ def register(mcp, stores, agents, enricher=None):
         files_changed: str | None = None,
         review_cycles: int = 0,
         model: str | None = None,
+        tests_run: str | None = None,
+        tests_passed: bool = True,
+        criteria_addressed: str | None = None,
     ) -> str:
         """Report task completion with four-status system and write an execution trace.
 
@@ -179,6 +193,8 @@ def register(mcp, stores, agents, enricher=None):
 
         concerns, context_needed: comma-separated strings (parsed to lists).
         files_changed: comma-separated file paths.
+        tests_run: comma-separated test names/commands that were executed.
+        criteria_addressed: comma-separated acceptance criteria that were met.
         """
         try:
             completion_status = TaskCompletionStatus(status)
@@ -192,6 +208,8 @@ def register(mcp, stores, agents, enricher=None):
         concerns_list = parse_csv(concerns)
         context_list = parse_csv(context_needed)
         files_list = parse_csv(files_changed)
+        tests_list = parse_csv(tests_run)
+        criteria_list = parse_csv(criteria_addressed)
 
         # Map completion status to task status
         if completion_status == TaskCompletionStatus.DONE:
@@ -224,17 +242,25 @@ def register(mcp, stores, agents, enricher=None):
             block_reason=block_reason,
             files_changed=files_list,
             review_cycles=review_cycles,
+            tests_run=tests_list,
+            tests_passed=tests_passed,
+            criteria_addressed=criteria_list,
             task_type=task.type.value if task.type else None,
             task_category=task.category.value if task.category else None,
             task_priority=task.priority.value if task.priority else None,
         )
-        if task.progress:
-            trace.started = task.progress[0].timestamp
+        if trace.started:
             trace.duration_seconds = (trace.completed - trace.started).total_seconds()
 
         stores.trace.write_trace(trace)
 
         result_lines = [f"Reported: {task_id} — {completion_status.value}"]
+
+        if tests_list:
+            status_str = "passed" if tests_passed else "FAILED"
+            result_lines.append(f"Tests: {', '.join(tests_list)} — {status_str}")
+        if criteria_list:
+            result_lines.append(f"Criteria addressed: {', '.join(criteria_list)}")
 
         # Check if review is required by project policy
         if new_task_status == TaskStatus.DONE:

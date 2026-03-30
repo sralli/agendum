@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -10,6 +11,8 @@ import frontmatter
 import yaml
 
 from agendum.models import AgentHandoffRecord, ProgressEntry, Task, TaskPriority, TaskStatus, TaskType
+
+logger = logging.getLogger(__name__)
 
 # --- Helpers ---
 
@@ -85,6 +88,7 @@ def _parse_structured_handoff(text: str) -> AgentHandoffRecord | None:
             return None
         return AgentHandoffRecord.model_validate(data)
     except Exception:
+        logger.warning("Failed to parse structured handoff YAML")
         return None
 
 
@@ -99,6 +103,7 @@ def _parse_agent_history(text: str) -> list[AgentHandoffRecord]:
             return []
         return [AgentHandoffRecord.model_validate(item) for item in data if isinstance(item, dict)]
     except Exception:
+        logger.warning("Failed to parse agent history YAML")
         return []
 
 
@@ -156,6 +161,10 @@ def task_from_file(path: Path) -> Task:
         blocks=_ensure_list(meta.get("blocks")),
         acceptance_criteria=_ensure_list(meta.get("acceptanceCriteria")),
         tags=_ensure_list(meta.get("tags")),
+        review_checklist=_ensure_list(meta.get("reviewChecklist")),
+        test_requirements=_ensure_list(meta.get("testRequirements")),
+        key_files=_ensure_list(meta.get("keyFiles")),
+        constraints=_ensure_list(meta.get("constraints")),
         created=meta.get("created", datetime.now(UTC)),
         updated=meta.get("updated", datetime.now(UTC)),
         context=context,
@@ -184,6 +193,10 @@ def task_to_markdown(task: Task) -> str:
         "blocks": task.blocks,
         "acceptanceCriteria": task.acceptance_criteria,
         "tags": task.tags,
+        "reviewChecklist": task.review_checklist,
+        "testRequirements": task.test_requirements,
+        "keyFiles": task.key_files,
+        "constraints": task.constraints,
         "created": task.created.isoformat() if isinstance(task.created, datetime) else task.created,
         "updated": task.updated.isoformat() if isinstance(task.updated, datetime) else task.updated,
     }

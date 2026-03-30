@@ -20,6 +20,10 @@ def register(mcp, stores, agents):
         depends_on: list[str] | None = None,
         acceptance_criteria: list[str] | None = None,
         tags: list[str] | None = None,
+        review_checklist: list[str] | None = None,
+        test_requirements: list[str] | None = None,
+        key_files: list[str] | None = None,
+        constraints: list[str] | None = None,
     ) -> str:
         """Create a new task in a project.
 
@@ -27,6 +31,12 @@ def register(mcp, stores, agents):
         Acceptance criteria are checked when completing a task.
         Valid priorities: critical, high, medium, low.
         Valid types: dev, docs, email, planning, personal, ops, research, review.
+
+        Optional metadata lists:
+        - review_checklist: items to verify during code review.
+        - test_requirements: tests that must pass before completion.
+        - key_files: files relevant to this task.
+        - constraints: rules or limits the implementer must follow.
         """
         try:
             task = stores.task.create_task(
@@ -38,6 +48,10 @@ def register(mcp, stores, agents):
                 depends_on=depends_on or [],
                 acceptance_criteria=acceptance_criteria or [],
                 tags=tags or [],
+                review_checklist=review_checklist or [],
+                test_requirements=test_requirements or [],
+                key_files=key_files or [],
+                constraints=constraints or [],
             )
         except ValueError as e:
             return f"Error: {e}"
@@ -53,11 +67,13 @@ def register(mcp, stores, agents):
         assigned: str | None = None,
         tag: str | None = None,
         task_type: str | None = None,
+        include_archived: bool = False,
     ) -> str:
         """List tasks in a project with optional filters.
 
         Valid statuses: pending, in_progress, blocked, review, done, cancelled.
         Returns a formatted table with status, ID, title, priority, and assignee.
+        Set include_archived=True to also show archived (done/cancelled) tasks.
         """
         status_enum = None
         if status:
@@ -67,6 +83,10 @@ def register(mcp, stores, agents):
                 return f"Invalid status '{status}'. Valid values: {_VALID_STATUSES}"
         try:
             tasks = stores.task.list_tasks(project, status=status_enum, assigned=assigned, tag=tag, task_type=task_type)
+            if include_archived:
+                tasks += stores.task.list_archived_tasks(
+                    project, status=status_enum, assigned=assigned, tag=tag, task_type=task_type
+                )
         except ValueError as e:
             return f"Error: {e}"
 
@@ -79,6 +99,50 @@ def register(mcp, stores, agents):
             deps_str = f" (depends: {','.join(t.depends_on)})" if t.depends_on else ""
             lines.append(f"  [{t.status.value:^11}] {t.id}: {t.title} ({t.priority.value}){assigned_str}{deps_str}")
         return "\n".join(lines)
+
+    @mcp.tool()
+    def pm_task_archive(project: str, task_id: str) -> str:
+        """Archive a done or cancelled task, moving it out of active listings.
+
+        Archived tasks are still accessible via pm_task_get and pm_task_list with include_archived=True.
+        """
+        try:
+            task = stores.task.archive_task(project, task_id)
+        except (FileNotFoundError, ValueError) as e:
+            return f"Error: {e}"
+        return f"Archived {task_id}: {task.title}"
+
+    @mcp.tool()
+    def pm_task_archive_all(project: str) -> str:
+        """Archive all done and cancelled tasks in a project.
+
+        Bulk cleanup — moves all completed/cancelled tasks out of active listings.
+        """
+        tasks = stores.task.list_tasks(project)
+        archivable = [t for t in tasks if t.status in (TaskStatus.DONE, TaskStatus.CANCELLED)]
+        if not archivable:
+            return f"No done/cancelled tasks to archive in '{project}'."
+        archived = []
+        errors = []
+        for t in archivable:
+            try:
+                stores.task.archive_task(project, t.id)
+                archived.append(t.id)
+            except (FileNotFoundError, ValueError) as e:
+                errors.append(f"{t.id}: {e}")
+        result = f"Archived {len(archived)} task(s) in '{project}': {', '.join(archived)}"
+        if errors:
+            result += f"\nErrors: {'; '.join(errors)}"
+        return result
+
+    @mcp.tool()
+    def pm_task_unarchive(project: str, task_id: str) -> str:
+        """Restore an archived task back to the active task list."""
+        try:
+            task = stores.task.unarchive_task(project, task_id)
+        except FileNotFoundError as e:
+            return f"Error: {e}"
+        return f"Unarchived {task_id}: {task.title} (status: {task.status.value})"
 
     @mcp.tool()
     def pm_task_get(project: str, task_id: str) -> str:
@@ -103,6 +167,20 @@ def register(mcp, stores, agents):
             lines.append("\n## Acceptance Criteria")
             for ac in task.acceptance_criteria:
                 lines.append(f"  - [ ] {ac}")
+        if task.review_checklist:
+            lines.append("\n## Review Checklist")
+            for rc in task.review_checklist:
+                lines.append(f"  - [ ] {rc}")
+        if task.test_requirements:
+            lines.append("\n## Test Requirements")
+            for tr in task.test_requirements:
+                lines.append(f"  - {tr}")
+        if task.key_files:
+            lines.append(f"\nKey files: {', '.join(task.key_files)}")
+        if task.constraints:
+            lines.append("\n## Constraints")
+            for c in task.constraints:
+                lines.append(f"  - {c}")
         if task.context:
             lines.append(f"\n## Context\n{task.context}")
         if task.progress:

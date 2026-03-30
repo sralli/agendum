@@ -7,7 +7,7 @@ from agendum.store.memory_store import MemoryStore
 
 
 def _tmp_root():
-    root = Path(tempfile.mkdtemp()) / ".agentpm"
+    root = Path(tempfile.mkdtemp()) / ".agendum"
     root.mkdir(parents=True)
     return root
 

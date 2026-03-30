@@ -134,19 +134,37 @@ class ReviewHistorySource:
 
     def enrich(self, packet: ContextPacket, task: Task, project: str) -> ContextPacket:
         failures = []
+        criteria_failed: list[str] = []
+
         for entry in task.progress:
             if "Review FAILED" in entry.message:
                 failures.append(f"- [{entry.timestamp.strftime('%Y-%m-%d %H:%M')}] {entry.message}")
+            if "Criteria failed:" in entry.message:
+                # Parse "Criteria failed: X, Y" into individual criteria
+                _, _, raw = entry.message.partition("Criteria failed:")
+                for criterion in raw.split(","):
+                    criterion = criterion.strip()
+                    if criterion:
+                        criteria_failed.append(criterion)
 
-        if not failures:
+        if not failures and not criteria_failed:
             return packet
+
+        sections: list[str] = []
+        if failures:
+            sections.append("Prior review failures:")
+            sections.extend(failures)
+        if criteria_failed:
+            sections.append("Criteria that failed:")
+            for c in criteria_failed:
+                sections.append(f"- {c}")
 
         pointers = list(packet.pointers)
         pointers.append(f'pm_task_get(project="{project}", task_id="{task.id}")')
 
         return packet.model_copy(
             update={
-                "review_history": "\n".join(failures),
+                "review_history": "\n".join(sections),
                 "pointers": pointers,
             }
         )

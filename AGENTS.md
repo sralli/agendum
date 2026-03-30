@@ -2,16 +2,57 @@
 
 > Read this before making any changes to the codebase.
 
-## Quick Start
+## Orchestrated workflow
+
+This project uses its own agendum MCP tools. All non-trivial work follows this pipeline.
+
+### Pipeline
+
+```
+┌─────────┐    ┌──────────┐    ┌──────────┐    ┌────────┐    ┌────────┐
+│  Orient  │───▸│   Plan   │───▸│ Dispatch │───▸│ Report │───▸│ Review │
+│          │    │          │    │          │    │        │    │        │
+│ board    │    │ harness  │    │ next →   │    │ report │    │ spec + │
+│ status   │    │ plan     │    │ subagent │    │ status │    │quality │
+└─────────┘    │ approve  │    └──────────┘    └────────┘    └────────┘
+               └──────────┘         │                            │
+                                    │         ┌────────┐         │
+                                    ◂─────────│  Fix   │◂────────┘
+                                              │ issues │   (if failed)
+                                              └────────┘
+```
+
+1. **Orient**: `pm_board_status` → `pm_task_list project=agendum` → `pm_memory_search`
+2. **Plan**: harness plan mode → `pm_orchestrate_plan` → `pm_orchestrate_approve`
+3. **Dispatch**: `pm_orchestrate_next` → spawn subagent with context packet
+4. **Report**: subagent calls `pm_orchestrate_report` with status
+5. **Review**: `pm_orchestrate_review stage=spec` then `stage=quality`
+6. If review fails → subagent fixes → re-report → re-review
+7. **Repeat** until plan complete → `pm_orchestrate_status` → test → commit
+
+### Skip orchestration for
+
+- Single-line fixes (typos, version bumps)
+- Pure research/exploration
+- README-only changes
+
+### Subagent contract
+
+- Receives context packet from `pm_orchestrate_next`
+- MUST call `pm_orchestrate_report` when done
+- MUST NOT modify files outside task scope
+- MUST run relevant tests before reporting `done`
+- Use `pm_task_progress` for intermediate updates
+
+## Quick start
 
 ```bash
 uv sync                          # install dependencies
-uv run pytest tests/ -v          # run all 196 tests
+uv run pytest tests/ -v          # run all tests
 uv run ruff check .              # lint
-uv run mypy src/agendum          # type-check
 ```
 
-## Project Structure
+## Project structure
 
 ```
 src/agendum/
@@ -24,7 +65,7 @@ src/agendum/
 
   store/
     locking.py       — get_lock(path), atomic_write(path, content) — concurrency primitives
-    task_store.py    — TaskStore: CRUD for task Markdown files with YAML frontmatter
+    task_store.py    — TaskStore: CRUD + archive/unarchive for task Markdown files
     project_store.py — ProjectStore: project init, list, get, policies
     memory_store.py  — MemoryStore: append/read/search persistent agent notes
     agent_store.py   — AgentStore: agent registration and heartbeat persistence
@@ -34,10 +75,12 @@ src/agendum/
   tools/
     board.py         — pm_board_init, pm_board_status
     project.py       — pm_project_create, pm_project_list, pm_project_get
-    task.py          — pm_task_{create,list,get,claim,progress,complete,block,handoff,next}
+    task.py          — pm_task_{create,list,get,archive,archive_all,unarchive}
+    task_workflow.py  — pm_task_{claim,progress,complete,block,handoff,next}
     memory.py        — pm_memory_{write,append,read,search}
     agent.py         — pm_agent_{register,heartbeat,list,suggest}
-    utils.py         — pm_check_deps, pm_plan_update, pm_spec_update
+    utils.py         — pm_check_deps
+    project.py       — pm_project_{create,list,get}, pm_plan_update, pm_spec_update
     orchestrator/    — Structured planning, dispatch, review, and policy
       __init__.py    — register() delegates to submodules
       _helpers.py    — resolve_and_unblock(), check_plan_level_complete(), parse_csv()
@@ -45,6 +88,8 @@ src/agendum/
       dispatch.py    — pm_orchestrate_next, pm_orchestrate_report
       review.py      — pm_orchestrate_review, pm_orchestrate_approve
       policy.py      — pm_orchestrate_policy
+      enrichment.py  — ContextEnricher pipeline
+      sources.py     — ProjectRules, Memory, Handoff, ReviewHistory, ExternalReferences
 
 tests/
   conftest.py        — mcp_server fixture, call() helper
@@ -52,9 +97,13 @@ tests/
   test_*_store.py    — unit tests for store classes
   test_concurrent.py — locking/race-condition tests
   test_security.py   — path traversal and input sanitization tests
+
+templates/
+  CLAUDE.md          — Template for projects adopting agendum
+  AGENTS.md          — Template agent guide for projects adopting agendum
 ```
 
-## Three-Tier Boundaries
+## Three-tier boundaries
 
 ### Always
 - Use `get_lock(path)` context manager for every store write
@@ -62,6 +111,7 @@ tests/
 - Add type annotations to all new public functions
 - Follow the `register(mcp, stores, agents)` pattern for new tool modules
 - Keep MCP tool return values as plain strings (not raised exceptions)
+- Include `list_archived_tasks()` when computing `done_ids` for dependency resolution
 
 ### Ask first
 - Changing the Markdown/YAML format of task files — breaks existing boards
@@ -72,74 +122,41 @@ tests/
 
 ### Never
 - `path.write_text()` or `open(path, "w")` without `get_lock()` — race condition
-- Raise exceptions from MCP tool functions — return error strings instead (e.g. `return f"Error: {e}"`)
+- `shutil.move()` for file moves — use read → `atomic_write` → `unlink` instead
+- Raise exceptions from MCP tool functions — return error strings instead
 - Modify files under `.agendum/` — that is runtime board data, not source
-- Skip the test suite — all 196 tests must pass before any PR
-- Add `Co-Authored-By` lines to commits — no AI co-author attribution
+- Skip the test suite — all tests must pass before any PR
+- Add `Co-Authored-By` lines to commits
 
 ---
 
-## Adding a New MCP Tool
+## Adding a new MCP tool
 
 All tool modules export a single `register(mcp, stores, agents)` function. Tools are
 decorated with `@mcp.tool()` and defined as closures that capture `stores` and `agents`.
 
-Real pattern from `src/agendum/tools/task.py`:
-
 ```python
 def register(mcp, stores, agents):
-    """Register task tools on the MCP server."""
-
     @mcp.tool()
-    def pm_task_create(
-        project: str,
-        title: str,
-        description: str = "",
-        priority: str = "medium",
-    ) -> str:
+    def pm_task_create(project: str, title: str, priority: str = "medium") -> str:
         """Create a new task in a project."""
         try:
-            task = stores.task.create_task(
-                project=project,
-                title=title,
-                context=description,
-                priority=priority,
-            )
+            task = stores.task.create_task(project=project, title=title, priority=priority)
         except ValueError as e:
             return f"Error: {e}"
         return f"Created task {task.id}: {task.title}"
 ```
 
-Simpler example from `src/agendum/tools/board.py`:
-
-```python
-def register(mcp, stores, agents):
-    """Register board tools on the MCP server."""
-
-    @mcp.tool()
-    def pm_board_init(name: str = "agendum") -> str:
-        """Initialize .agendum/ directory in the current project."""
-        config = stores.project.init_board(name)
-        return f"Initialized agendum board at {stores.root}. Config: {json.dumps(config.model_dump())}"
-```
-
-Wire the new module in `src/agendum/server.py` (and in `tests/conftest.py`):
-
-```python
-from agendum.tools import mymodule
-mymodule.register(mcp, stores, agents_registry)
-```
+Wire in `src/agendum/server.py` and `tests/conftest.py`.
 
 ---
 
-## Store Write Pattern
+## Store write pattern
 
-Every write to a task file must go through `get_lock()` + `atomic_write()`.
-Real example from `src/agendum/store/task_store.py`:
+Every write must go through `get_lock()` + `atomic_write()`:
 
 ```python
-def update_task(self, project: str, task_id: str, **updates) -> Task | None:
-    """Update whitelisted fields and write back to disk (locked + atomic)."""
+def update_task(self, project, task_id, **updates):
     path = _task_path(self.root, project, task_id)
     with get_lock(path):
         task = self.get_task(project, task_id)
@@ -151,140 +168,44 @@ def update_task(self, project: str, task_id: str, **updates) -> Task | None:
         task.updated = datetime.now(UTC)
         atomic_write(path, task_to_markdown(task))
     return task
-
-def add_progress(self, project: str, task_id: str, agent: str, message: str) -> Task | None:
-    """Append a progress entry (locked + atomic to prevent concurrent data loss)."""
-    path = _task_path(self.root, project, task_id)
-    with get_lock(path):
-        task = self.get_task(project, task_id)
-        if not task:
-            return None
-        task.progress.append(
-            ProgressEntry(timestamp=datetime.now(UTC), agent=agent, message=message)
-        )
-        task.updated = datetime.now(UTC)
-        atomic_write(path, task_to_markdown(task))
-    return task
 ```
 
-`get_lock(path)` creates a `.lock` sidecar file next to the target.
-`atomic_write(path, content)` writes to a `.tmp` file then calls `os.replace()` (POSIX-atomic).
+For file moves (archive/unarchive): read content → `atomic_write` to destination → `unlink` source → clean up `.lock` sidecar.
 
 ---
 
-## Test Conventions
+## Test conventions
 
-The `mcp_server` fixture in `tests/conftest.py` returns `(mcp, stores, agents_registry)`:
-
-```python
-@pytest_asyncio.fixture
-async def mcp_server(tmp_path: Path):
-    """Fresh FastMCP instance with isolated stores, wired for all tool modules."""
-    root = tmp_path / ".agendum"
-    root.mkdir()
-
-    stores = _Stores()
-    stores._root = root  # bypass resolve_root()
-
-    agents_registry: dict = {}
-
-    mcp = FastMCP("agendum-test")
-    board.register(mcp, stores, agents_registry)
-    project.register(mcp, stores, agents_registry)
-    task.register(mcp, stores, agents_registry)
-    memory.register(mcp, stores, agents_registry)
-    agent.register(mcp, stores, agents_registry)
-    utils.register(mcp, stores, agents_registry)
-
-    return mcp, stores, agents_registry
-
-
-async def call(mcp: FastMCP, tool_name: str, **kwargs) -> str:
-    """Call an MCP tool and return the text result."""
-    content, _ = await mcp.call_tool(tool_name, kwargs)
-    return content[0].text
-```
-
-Typical test shape:
-
-```python
-async def test_task_create_happy(mcp_server):
-    mcp, stores, agents = mcp_server
-    await call(mcp, "pm_board_init", name="test")
-    await call(mcp, "pm_project_create", name="myproject")
-    result = await call(mcp, "pm_task_create", project="myproject", title="Do a thing")
-    assert "task-001" in result
-```
-
-Key notes:
-- `asyncio_mode = auto` is set in `pyproject.toml` — do **not** add `@pytest.mark.asyncio`
-- All MCP tools return `str` — error paths assert `"error" in result.lower()` rather than catching exceptions
-- `tmp_path` is provided by pytest but is not passed to `mcp_server` directly — `stores._root` is what controls isolation
+- `asyncio_mode = auto` — no `@pytest.mark.asyncio` needed
+- MCP tools return `str` — assert on string content, not exceptions
+- Use `pytest.raises` for store-level exception tests
+- `mcp_server` fixture returns `(mcp, stores, agents_registry)` 3-tuple
 
 ---
 
-## Naming Conventions
+## Naming conventions
 
 | Category | Pattern | Examples |
 |---|---|---|
 | MCP tools | `pm_{noun}_{verb}` | `pm_task_create`, `pm_board_status` |
-| Store methods | `snake_case` verbs | `update_task()`, `add_progress()` |
-| Test functions | `test_{tool_name}_{scenario}` | `test_task_create_happy`, `test_task_block_missing` |
-| Models | `PascalCase` Pydantic `BaseModel` | `Task`, `Project`, `AgentHandoffRecord` |
-| Tool modules | `snake_case` noun | `task.py`, `board.py`, `memory.py` |
+| Store methods | `snake_case` verbs | `update_task()`, `archive_task()` |
+| Test functions | `test_{tool_name}_{scenario}` | `test_task_create_happy` |
+| Models | `PascalCase` Pydantic | `Task`, `ExecutionPlan` |
 
 ---
 
-## Common Pitfalls
+## Orchestrator conventions
 
-1. **Tools must return strings, not raise.** Every tool catches `ValueError` and returns `f"Error: {e}"`. Unhandled exceptions crash the MCP transport. Always wrap store calls in `try/except`.
-
-2. **No `@pytest.mark.asyncio` needed.** The project uses `asyncio_mode = auto` in `pyproject.toml`. Adding the decorator is harmless but unnecessary; omitting it is correct.
-
-3. **`tmp_path` is not used directly in `mcp_server` tests.** The fixture creates its own `root = tmp_path / ".agendum"` and assigns it to `stores._root`. Don't pass `tmp_path` as an argument to tool calls.
-
-4. **`mcp_server` returns a 3-tuple.** Unpack as `mcp, stores, agents = mcp_server`. Forgetting `agents` will cause an unpack error.
-
-5. **Task IDs are sequential per project.** IDs are generated as `task-001`, `task-002`, etc. based on the highest existing number in the project's tasks directory. Never hard-code an ID without first checking the project state.
-
----
-
-## Orchestrator Conventions
-
-The `tools/orchestrator/` package follows specific patterns:
-
-### Adding a new orchestrator tool
-
-1. Choose the right submodule: `planning.py` (plan creation/status), `dispatch.py` (task dispatch/reporting), `review.py` (review/approval), `policy.py` (configuration)
-2. Add the tool inside the `register(mcp, stores, agents)` function
-3. Reuse helpers from `_helpers.py` — don't duplicate resolve/unblock logic
-
-### Key rules
-
-- **Plans always start as DRAFT.** The caller must call `pm_orchestrate_approve` to begin execution. This ensures human review before task dispatch.
-- **Traces are append-only.** Never modify a trace file after creation. Write a new trace for each attempt.
-- **Context packets are built at plan creation time** in `planning.py`, stored in the plan YAML, and served by `pm_orchestrate_next`.
-- **Four-status reporting** (`done`, `done_with_concerns`, `needs_context`, `blocked`) maps to TaskStatus but preserves richer information in traces.
-- **Review is opt-in** via `ProjectPolicy.review_required`. Default is `False`.
-
-### Models added for orchestration
-
-| Model | Purpose |
-|-------|---------|
-| `ExecutionPlan` | Plan with DAG levels, context packets, status |
-| `ExecutionLevel` | Group of task IDs at the same dependency depth |
-| `ContextPacket` | Constructed context for a sub-agent executing a task |
-| `ExecutionTrace` | Append-only record of a task execution attempt |
-| `ProjectPolicy` | Per-project review/approval configuration |
-| `ExecutionStatus` | draft, approved, executing, paused, completed, failed, cancelled |
-| `TaskCompletionStatus` | done, done_with_concerns, needs_context, blocked |
-| `ApprovalPolicy` | human_required, auto_with_review, auto |
+- Plans always start as DRAFT → approved via `pm_orchestrate_approve`
+- Traces are append-only — one file per execution attempt
+- Context packets built at plan creation, served by `pm_orchestrate_next`
+- Four-status reporting: `done`, `done_with_concerns`, `needs_context`, `blocked`
+- Review is two-stage: spec (acceptance criteria) then quality (code quality)
+- Review is opt-in via `ProjectPolicy.review_required`
 
 ---
 
 ## Sources
 
 - MCP Python SDK: https://py.sdk.modelcontextprotocol.io/
-- JetBrains AI coding guidelines: https://blog.jetbrains.com/idea/2025/05/coding-guidelines-for-your-ai-agents/
-- Addy Osmani spec structure: https://addyosmani.com/blog/good-spec/
 - Ruff rules: https://docs.astral.sh/ruff/rules/

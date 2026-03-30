@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
-from agendum.models import ExecutionStatus, TaskStatus
+from agendum.models import ExecutionStatus, ExecutionTrace, TaskCompletionStatus, TaskStatus
 from agendum.tools.orchestrator._helpers import (
     check_plan_level_complete,
     parse_csv,
     resolve_and_unblock,
 )
+
+_DEFAULT_REVIEW_CHECKLISTS: dict[str, list[str]] = {
+    "dev": ["Tests pass", "No lint errors", "No regressions in existing tests", "Changes scoped to task"],
+    "docs": ["Accurate", "No stale references", "Follows project style"],
+    "review": ["All files read", "Findings have file:line references", "Actionable recommendations"],
+    "ops": ["Reversible or confirmed", "No secrets exposed"],
+    "research": ["Sources cited", "Findings documented"],
+}
 
 
 def register(mcp, stores, agents):
@@ -63,12 +71,16 @@ def register(mcp, stores, agents):
         reviewer_agent_id: str = "unknown",
         issues: str | None = None,
         plan_id: str | None = None,
+        criteria_met: list[str] | None = None,
+        criteria_failed: list[str] | None = None,
     ) -> str:
         """Two-stage review for a completed task.
 
         stage: 'spec' (acceptance criteria compliance) or 'quality' (code quality).
         passed: True if review passed, False if failed.
         issues: comma-separated list of issues found.
+        criteria_met: list of acceptance criteria that passed (required for spec stage when task has criteria).
+        criteria_failed: list of acceptance criteria that failed (auto-sets passed=False).
 
         Flow:
         - Spec review fail -> task back to in_progress
@@ -86,6 +98,27 @@ def register(mcp, stores, agents):
         if stage not in ("spec", "quality"):
             return f"Error: stage must be 'spec' or 'quality', got '{stage}'"
 
+        # Determine effective checklist
+        effective_checklist = task.review_checklist or task.acceptance_criteria
+        if not effective_checklist and task.type:
+            effective_checklist = _DEFAULT_REVIEW_CHECKLISTS.get(task.type.value, [])
+
+        # Structured criteria validation for spec stage
+        if stage == "spec" and effective_checklist:
+            if criteria_met is None and criteria_failed is None:
+                checklist_str = "\n".join(f"  - {c}" for c in effective_checklist)
+                return (
+                    f"Error: task has review criteria but no criteria_met or criteria_failed provided.\n"
+                    f"Review checklist:\n{checklist_str}\n"
+                    f"Provide criteria_met and/or criteria_failed lists."
+                )
+            # Auto-fail if any criteria failed
+            if criteria_failed:
+                passed = False
+                issues_list = parse_csv(issues) if issues else []
+                issues_list.extend(f"Criterion failed: {c}" for c in criteria_failed)
+                issues = ", ".join(issues_list)
+
         issues_list = parse_csv(issues)
 
         if not passed:
@@ -99,8 +132,6 @@ def register(mcp, stores, agents):
             )
 
             # Record review failure as a new trace (append-only invariant)
-            from agendum.models import ExecutionTrace, TaskCompletionStatus
-
             review_trace = ExecutionTrace(
                 task_id=task_id,
                 project=project,
@@ -111,6 +142,16 @@ def register(mcp, stores, agents):
                 review_issues=issues_list,
             )
             stores.trace.write_trace(review_trace)
+
+            # Log criteria details
+            if criteria_met:
+                stores.task.add_progress(
+                    project, task_id, reviewer_agent_id, f"Criteria met: {', '.join(criteria_met)}"
+                )
+            if criteria_failed:
+                stores.task.add_progress(
+                    project, task_id, reviewer_agent_id, f"Criteria failed: {', '.join(criteria_failed)}"
+                )
 
             issue_summary = ", ".join(issues_list) or "none specified"
             return f"Review failed ({stage}): {task_id} back to in_progress. Issues: {issue_summary}"
@@ -123,6 +164,15 @@ def register(mcp, stores, agents):
                 reviewer_agent_id,
                 "Spec review PASSED — acceptance criteria met",
             )
+            # Log criteria details
+            if criteria_met:
+                stores.task.add_progress(
+                    project, task_id, reviewer_agent_id, f"Criteria met: {', '.join(criteria_met)}"
+                )
+            if criteria_failed:
+                stores.task.add_progress(
+                    project, task_id, reviewer_agent_id, f"Criteria failed: {', '.join(criteria_failed)}"
+                )
             return (
                 f"Spec review passed for {task_id}. Proceed with quality review (pm_orchestrate_review stage=quality)."
             )
@@ -135,6 +185,16 @@ def register(mcp, stores, agents):
             reviewer_agent_id,
             "Quality review PASSED — task complete",
         )
+
+        # Log criteria details
+        if criteria_met:
+            stores.task.add_progress(
+                project, task_id, reviewer_agent_id, f"Criteria met: {', '.join(criteria_met)}"
+            )
+        if criteria_failed:
+            stores.task.add_progress(
+                project, task_id, reviewer_agent_id, f"Criteria failed: {', '.join(criteria_failed)}"
+            )
 
         result_lines = [f"Quality review passed for {task_id} — marked DONE"]
 

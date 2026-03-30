@@ -16,7 +16,7 @@ def register(mcp, stores, agents):
         before starting work.
         """
         try:
-            all_tasks = stores.task.list_tasks(project)
+            all_tasks = stores.task.all_tasks(project)
         except ValueError as e:
             return f"Error: {e}"
         cycles = detect_cycles(all_tasks)

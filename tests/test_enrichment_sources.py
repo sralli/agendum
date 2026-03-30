@@ -220,6 +220,49 @@ class TestReviewHistorySource:
         assert result.review_history == ""
 
 
+    def test_extracts_criteria_failures(self):
+        """ReviewHistorySource extracts structured criteria failure details."""
+        task = _task()
+        task.progress = [
+            ProgressEntry(
+                timestamp=datetime(2026, 3, 29, tzinfo=UTC),
+                agent="reviewer",
+                message="Review FAILED (spec): Criterion failed: Login works",
+            ),
+            ProgressEntry(
+                timestamp=datetime(2026, 3, 29, 1, tzinfo=UTC),
+                agent="reviewer",
+                message="Criteria failed: Login works, Logout works",
+            ),
+        ]
+
+        source = ReviewHistorySource()
+        result = source.enrich(_packet(), task, "test")
+        assert "Review FAILED" in result.review_history
+        assert "Login works" in result.review_history
+        assert "Logout works" in result.review_history
+        assert "Prior review failures:" in result.review_history
+        assert "Criteria that failed:" in result.review_history
+
+    def test_criteria_failed_only(self):
+        """ReviewHistorySource handles entries with only Criteria failed (no Review FAILED)."""
+        task = _task()
+        task.progress = [
+            ProgressEntry(
+                timestamp=datetime(2026, 3, 29, tzinfo=UTC),
+                agent="reviewer",
+                message="Criteria failed: Signup flow, Email validation",
+            ),
+        ]
+
+        source = ReviewHistorySource()
+        result = source.enrich(_packet(), task, "test")
+        assert "Signup flow" in result.review_history
+        assert "Email validation" in result.review_history
+        assert "Prior review failures:" not in result.review_history
+        assert "Criteria that failed:" in result.review_history
+
+
 class TestExternalReferencesSource:
     def test_adds_pointers(self, tmp_path):
         root = tmp_path / ".agendum"

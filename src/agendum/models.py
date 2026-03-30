@@ -53,6 +53,14 @@ class TaskCategory(StrEnum):
 # --- Core Models ---
 
 
+class ProgressEntry(BaseModel):
+    """A single entry in a task's progress log."""
+
+    timestamp: datetime
+    agent: str
+    message: str
+
+
 class AgentHandoffRecord(BaseModel):
     """Structured snapshot left by an agent when handing off a task."""
 
@@ -99,6 +107,10 @@ class Task(BaseModel):
     blocks: list[str] = Field(default_factory=list)
     acceptance_criteria: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
+    review_checklist: list[str] = Field(default_factory=list)
+    test_requirements: list[str] = Field(default_factory=list)
+    key_files: list[str] = Field(default_factory=list)
+    constraints: list[str] = Field(default_factory=list)
     created: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
@@ -110,14 +122,6 @@ class Task(BaseModel):
     handoff: str = ""  # legacy free-text handoff (kept for backward compat)
     structured_handoff: AgentHandoffRecord | None = None
     agent_history: list[AgentHandoffRecord] = Field(default_factory=list)
-
-
-class ProgressEntry(BaseModel):
-    """A single entry in a task's progress log."""
-
-    timestamp: datetime
-    agent: str
-    message: str
 
 
 class Project(BaseModel):
@@ -220,6 +224,10 @@ class ContextPacket(BaseModel):
     dependencies_summary: str = ""
     constraints: list[str] = Field(default_factory=list)
     review_checklist: list[str] = Field(default_factory=list)
+    task_type: str = ""
+    task_priority: str = ""
+    test_requirements: list[str] = Field(default_factory=list)
+    previous_attempts: int = 0
 
     # Enrichment fields (populated at dispatch time, empty at plan creation)
     project_rules: str = ""
@@ -273,6 +281,11 @@ class ExecutionTrace(BaseModel):
     review_cycles: int = 0
     review_issues: list[str] = Field(default_factory=list)
 
+    # Verification evidence
+    tests_run: list[str] = Field(default_factory=list)
+    tests_passed: bool = True
+    criteria_addressed: list[str] = Field(default_factory=list)
+
     # Task metadata (denormalized for aggregation)
     task_type: str | None = None
     task_category: str | None = None
@@ -296,7 +309,3 @@ class ProjectPolicy(BaseModel):
     max_context_chars: int = 8000
     disabled_sources: list[str] = Field(default_factory=list)
     external_references: list[ExternalReference] = Field(default_factory=list)
-
-
-# Forward ref update
-Task.model_rebuild()
