@@ -36,9 +36,7 @@ def atomic_create(path: Path, content: str, encoding: str = "utf-8") -> None:
         os.close(fd)
 
 
-def next_sequential_id(
-    directory: Path, prefix: str, extension: str, extra_dirs: list[Path] | None = None
-) -> str:
+def next_sequential_id(directory: Path, prefix: str, extension: str, extra_dirs: list[Path] | None = None) -> str:
     """Generate the next sequential ID like prefix-001, prefix-002.
 
     Scans directory (and any extra_dirs) for files matching {prefix}-*.{extension}.

@@ -219,7 +219,6 @@ class TestReviewHistorySource:
         result = source.enrich(_packet(), _task(), "test")
         assert result.review_history == ""
 
-
     def test_extracts_criteria_failures(self):
         """ReviewHistorySource extracts structured criteria failure details."""
         task = _task()

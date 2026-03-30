@@ -35,7 +35,6 @@ _MUTABLE_FIELDS = frozenset(
 )
 
 
-
 class TaskStore:
     """File-based task storage backed by .agendum/ directory."""
 
@@ -185,8 +184,9 @@ class TaskStore:
         task_type: str | None = None,
     ) -> list[Task]:
         """Return active + archived tasks. Use for dependency resolution."""
-        return self.list_tasks(project, status=status, assigned=assigned, tag=tag, task_type=task_type) + \
-            self.list_archived_tasks(project, status=status, assigned=assigned, tag=tag, task_type=task_type)
+        return self.list_tasks(
+            project, status=status, assigned=assigned, tag=tag, task_type=task_type
+        ) + self.list_archived_tasks(project, status=status, assigned=assigned, tag=tag, task_type=task_type)
 
     def list_archived_tasks(
         self,

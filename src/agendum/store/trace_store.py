@@ -69,4 +69,3 @@ class TraceStore:
                 logger.warning("Failed to parse trace file: %s", path)
                 continue
         return traces
-
