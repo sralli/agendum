@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
-
 from tests.conftest import call
 
 
-@pytest.mark.asyncio
 async def test_project_create_happy(mcp_server):
     mcp, stores, _ = mcp_server
     await call(mcp, "pm_board_init")
@@ -17,14 +14,12 @@ async def test_project_create_happy(mcp_server):
     assert (stores.root / "projects" / "alpha" / "plan.md").exists()
 
 
-@pytest.mark.asyncio
 async def test_project_list_empty(mcp_server):
     mcp, _, _ = mcp_server
     result = await call(mcp, "pm_project_list")
     assert "No projects" in result
 
 
-@pytest.mark.asyncio
 async def test_project_list_shows_projects(mcp_server):
     mcp, _, _ = mcp_server
     await call(mcp, "pm_board_init")
@@ -35,7 +30,6 @@ async def test_project_list_shows_projects(mcp_server):
     assert "beta" in result
 
 
-@pytest.mark.asyncio
 async def test_project_get_happy(mcp_server):
     mcp, _, _ = mcp_server
     await call(mcp, "pm_board_init")
@@ -46,14 +40,12 @@ async def test_project_get_happy(mcp_server):
     assert "Plan" in result
 
 
-@pytest.mark.asyncio
 async def test_project_get_not_found(mcp_server):
     mcp, _, _ = mcp_server
     result = await call(mcp, "pm_project_get", project="nonexistent")
     assert "not found" in result
 
 
-@pytest.mark.asyncio
 async def test_spec_update_happy(mcp_server):
     mcp, stores, _ = mcp_server
     await call(mcp, "pm_board_init")
@@ -63,14 +55,12 @@ async def test_spec_update_happy(mcp_server):
     assert "New Spec" in (stores.root / "projects" / "proj" / "spec.md").read_text()
 
 
-@pytest.mark.asyncio
 async def test_spec_update_not_found(mcp_server):
     mcp, _, _ = mcp_server
     result = await call(mcp, "pm_project_spec_update", project="ghost", content="irrelevant")
     assert "Error:" in result
 
 
-@pytest.mark.asyncio
 async def test_plan_update_happy(mcp_server):
     mcp, stores, _ = mcp_server
     await call(mcp, "pm_board_init")
@@ -80,7 +70,6 @@ async def test_plan_update_happy(mcp_server):
     assert "New Plan" in (stores.root / "projects" / "proj" / "plan.md").read_text()
 
 
-@pytest.mark.asyncio
 async def test_plan_update_not_found(mcp_server):
     mcp, _, _ = mcp_server
     result = await call(mcp, "pm_project_plan_update", project="ghost", content="irrelevant")
@@ -90,7 +79,6 @@ async def test_plan_update_not_found(mcp_server):
 # --- pm_project_create error path ---
 
 
-@pytest.mark.asyncio
 async def test_project_create_invalid_name(mcp_server):
     """pm_project_create: name with path traversal characters returns an Error."""
     mcp, _, _ = mcp_server
@@ -102,7 +90,6 @@ async def test_project_create_invalid_name(mcp_server):
 # --- pm_project_get additional ---
 
 
-@pytest.mark.asyncio
 async def test_project_get_error_invalid_name(mcp_server):
     """pm_project_get: name with traversal chars returns error string."""
     mcp, _, _ = mcp_server

@@ -2,12 +2,58 @@
 
 from __future__ import annotations
 
-from agendum.models import TaskStatus
+from typing import TYPE_CHECKING, Any
+
+from agendum.models import Task, TaskStatus
+
+if TYPE_CHECKING:
+    from mcp.server.fastmcp import FastMCP
+
+    from agendum.models import Agent
+
+
+def _render_handoff(task: Task) -> list[str]:
+    """Render structured handoff details as formatted lines."""
+    lines = []
+    if task.structured_handoff:
+        h = task.structured_handoff
+        ts = h.timestamp.strftime("%Y-%m-%d %H:%M") if h.timestamp else "?"
+        ctx_parts = [f"{h.agent_id}"]
+        if h.device:
+            ctx_parts.append(h.device)
+        if h.git_branch:
+            ctx_parts.append(f"branch: {h.git_branch}")
+        lines.append(f"\n## Handoff  (from {', '.join(ctx_parts)} at {ts})")
+        if h.completed:
+            lines.append("  Done:")
+            for item in h.completed:
+                lines.append(f"    [x] {item}")
+        if h.remaining:
+            lines.append("  Remaining:")
+            for item in h.remaining:
+                lines.append(f"    [ ] {item}")
+        if h.key_files:
+            lines.append(f"  Key files: {', '.join(h.key_files)}")
+        if h.decisions:
+            lines.append("  Decisions:")
+            for d in h.decisions:
+                lines.append(f"    - {d}")
+        if h.gotchas:
+            lines.append("  Gotchas:")
+            for g in h.gotchas:
+                lines.append(f"    ⚠ {g}")
+        if h.next_agent_hints:
+            hints = ", ".join(f"{k}: {v}" for k, v in h.next_agent_hints.items())
+            lines.append(f"  Next agent hints: {hints}")
+    elif task.handoff:
+        lines.append(f"\n## Handoff\n{task.handoff}")
+    return lines
+
 
 _VALID_STATUSES = ", ".join(s.value for s in TaskStatus)
 
 
-def register(mcp, stores, agents):
+def register(mcp: FastMCP, stores: Any, agents: dict[str, Agent]) -> None:
     """Register task CRUD tools on the MCP server."""
 
     @mcp.tool()
@@ -143,7 +189,7 @@ def register(mcp, stores, agents):
         except ValueError as e:
             return f"Error: {e}"
         if not task:
-            return f"Task '{task_id}' not found in project '{project}'."
+            return f"Error: task '{task_id}' not found in project '{project}'"
 
         lines = [
             f"# {task.title}",
@@ -184,38 +230,7 @@ def register(mcp, stores, agents):
                 lines.append(f"  - {d}")
 
         # Structured handoff takes priority over legacy free text
-        if task.structured_handoff:
-            h = task.structured_handoff
-            ts = h.timestamp.strftime("%Y-%m-%d %H:%M") if h.timestamp else "?"
-            ctx_parts = [f"{h.agent_id}"]
-            if h.device:
-                ctx_parts.append(h.device)
-            if h.git_branch:
-                ctx_parts.append(f"branch: {h.git_branch}")
-            lines.append(f"\n## Handoff  (from {', '.join(ctx_parts)} at {ts})")
-            if h.completed:
-                lines.append("  Done:")
-                for item in h.completed:
-                    lines.append(f"    [x] {item}")
-            if h.remaining:
-                lines.append("  Remaining:")
-                for item in h.remaining:
-                    lines.append(f"    [ ] {item}")
-            if h.key_files:
-                lines.append(f"  Key files: {', '.join(h.key_files)}")
-            if h.decisions:
-                lines.append("  Decisions:")
-                for d in h.decisions:
-                    lines.append(f"    - {d}")
-            if h.gotchas:
-                lines.append("  Gotchas:")
-                for g in h.gotchas:
-                    lines.append(f"    ⚠ {g}")
-            if h.next_agent_hints:
-                hints = ", ".join(f"{k}: {v}" for k, v in h.next_agent_hints.items())
-                lines.append(f"  Next agent hints: {hints}")
-        elif task.handoff:
-            lines.append(f"\n## Handoff\n{task.handoff}")
+        lines.extend(_render_handoff(task))
 
         if task.agent_history:
             lines.append(f"\n## Agent History ({len(task.agent_history)} handoff(s))")

@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import json
+from typing import TYPE_CHECKING, Any
 
 from agendum.models import TaskStatus
 
+if TYPE_CHECKING:
+    from mcp.server.fastmcp import FastMCP
 
-def register(mcp, stores, agents):
+    from agendum.models import Agent
+
+
+def register(mcp: FastMCP, stores: Any, agents: dict[str, Agent]) -> None:
     """Register board tools on the MCP server."""
 
     @mcp.tool()

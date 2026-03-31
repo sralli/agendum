@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from agendum.models import Agent, AgentPersistenceRecord
 
+if TYPE_CHECKING:
+    from mcp.server.fastmcp import FastMCP
 
-def register(mcp, stores, agents):
+
+def register(mcp: FastMCP, stores: Any, agents: dict[str, Agent]) -> None:
     """Register agent tools on the MCP server."""
 
     @mcp.tool()
@@ -108,7 +112,7 @@ def register(mcp, stores, agents):
         except ValueError as e:
             return f"Error: {e}"
         if not task:
-            return f"Task '{task_id}' not found."
+            return f"Error: task '{task_id}' not found."
 
         routing = {
             "dev": ("code-complex", "Claude Opus / GPT-5.4 for architecture; Claude Sonnet for simple fixes"),

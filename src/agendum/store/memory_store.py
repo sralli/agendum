@@ -33,7 +33,7 @@ class MemoryStore:
         """Read a memory scope file."""
         path = self._scope_path(scope)
         if path.exists():
-            return path.read_text()
+            return path.read_text(encoding="utf-8")
         return ""
 
     def write(self, scope: str, content: str) -> None:
@@ -53,7 +53,7 @@ class MemoryStore:
         line = f"\n- [{ts}]{attribution} {entry}\n"
 
         with get_lock(path):
-            existing = path.read_text() if path.exists() else ""
+            existing = path.read_text(encoding="utf-8") if path.exists() else ""
             atomic_write(path, existing + line)
 
     def search(self, query: str) -> dict[str, list[str]]:

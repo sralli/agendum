@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 from agendum.env_context import get_device_name, get_git_branch, get_working_dir
 from agendum.models import AgentHandoffRecord, TaskStatus
 from agendum.task_graph import suggest_next_task
 from agendum.tools.orchestrator._helpers import resolve_and_unblock
 
+if TYPE_CHECKING:
+    from mcp.server.fastmcp import FastMCP
 
-def register(mcp, stores, agents):
+    from agendum.models import Agent
+
+
+def register(mcp: FastMCP, stores: Any, agents: dict[str, Agent]) -> None:
     """Register task lifecycle tools on the MCP server."""
 
     @mcp.tool()
@@ -23,14 +30,14 @@ def register(mcp, stores, agents):
         except ValueError as e:
             return f"Error: {e}"
         if not task:
-            return f"Task '{task_id}' not found."
+            return f"Error: task '{task_id}' not found."
         if task.status not in (TaskStatus.PENDING, TaskStatus.BLOCKED):
-            return f"Task '{task_id}' is {task.status.value}, cannot claim."
+            return f"Error: task '{task_id}' is {task.status.value}, cannot claim."
 
         done_ids = {t.id for t in stores.task.all_tasks(project) if t.status == TaskStatus.DONE}
         unmet = [d for d in task.depends_on if d not in done_ids]
         if unmet:
-            return f"Cannot claim '{task_id}': unmet dependencies: {', '.join(unmet)}"
+            return f"Error: cannot claim '{task_id}': unmet dependencies: {', '.join(unmet)}"
 
         stores.task.update_task(project, task_id, assigned=agent_id, status=TaskStatus.IN_PROGRESS)
         stores.task.add_progress(project, task_id, agent_id, "Claimed task")
@@ -52,7 +59,7 @@ def register(mcp, stores, agents):
         except ValueError as e:
             return f"Error: {e}"
         if not task:
-            return f"Task '{task_id}' not found."
+            return f"Error: task '{task_id}' not found."
         return f"Logged progress on {task_id}: {message}"
 
     @mcp.tool()
@@ -67,7 +74,7 @@ def register(mcp, stores, agents):
         except ValueError as e:
             return f"Error: {e}"
         if not task:
-            return f"Task '{task_id}' not found."
+            return f"Error: task '{task_id}' not found."
 
         warning = ""
         if task.acceptance_criteria:
@@ -100,7 +107,7 @@ def register(mcp, stores, agents):
         except ValueError as e:
             return f"Error: {e}"
         if not task:
-            return f"Task '{task_id}' not found."
+            return f"Error: task '{task_id}' not found."
         stores.task.update_task(project, task_id, status=TaskStatus.BLOCKED)
         stores.task.add_progress(project, task_id, agent_id, f"Blocked: {reason}")
         return f"Blocked {task_id}: {reason}"
@@ -135,7 +142,7 @@ def register(mcp, stores, agents):
         except ValueError as e:
             return f"Error: {e}"
         if not task:
-            return f"Task '{task_id}' not found."
+            return f"Error: task '{task_id}' not found."
 
         # If using the new structured format
         if completed is not None or remaining is not None:

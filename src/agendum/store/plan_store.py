@@ -31,6 +31,10 @@ class PlanStore:
         """Generate next sequential plan ID like plan-001, plan-002."""
         return next_sequential_id(self._plans_dir(project), "plan", "yaml")
 
+    def _load_plan(self, path: Path) -> ExecutionPlan:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        return ExecutionPlan.model_validate(data)
+
     def create_plan(self, plan: ExecutionPlan) -> ExecutionPlan:
         """Create a new plan and write to disk."""
         plans_dir = self._plans_dir(plan.project)
@@ -55,8 +59,7 @@ class PlanStore:
         path = self._plan_path(project, plan_id)
         if not path.exists():
             return None
-        data = yaml.safe_load(path.read_text()) or {}
-        return ExecutionPlan.model_validate(data)
+        return self._load_plan(path)
 
     def update_plan(self, project: str, plan_id: str, **updates) -> ExecutionPlan | None:
         """Update plan fields and write back (locked + atomic)."""
@@ -82,8 +85,7 @@ class PlanStore:
         plans = []
         for path in sorted(plans_dir.glob("plan-*.yaml")):
             try:
-                data = yaml.safe_load(path.read_text()) or {}
-                plans.append(ExecutionPlan.model_validate(data))
+                plans.append(self._load_plan(path))
             except Exception:
                 logger.warning("Failed to parse plan file: %s", path)
                 continue

@@ -58,7 +58,7 @@ class TraceStore:
         traces = []
         for path in sorted(traces_dir.glob("*.yaml")):
             try:
-                data = yaml.safe_load(path.read_text()) or {}
+                data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
                 trace = ExecutionTrace.model_validate(data)
                 if plan_id and trace.plan_id != plan_id:
                     continue

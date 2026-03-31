@@ -54,7 +54,7 @@ uv run ruff format .        # format (CI checks --check)
 
 ## Architecture
 
-- **35 MCP tools** across 7 modules: board, project, task, memory, agent, utils, orchestrator
+- **34 MCP tools** across 8 modules: board, project, task, task_workflow, memory, agent, utils, orchestrator
 - **6 stores**: TaskStore, ProjectStore, MemoryStore, AgentStore, PlanStore, TraceStore
 - All writes use `get_lock()` + `atomic_write()` from `store/locking.py`
 - Task files: Markdown + YAML frontmatter in `.agendum/projects/<project>/tasks/`

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -57,6 +58,28 @@ class TaskStore:
     def ensure_project(self, project: str) -> None:
         self._tasks_dir(project).mkdir(parents=True, exist_ok=True)
 
+    @staticmethod
+    def _filter_tasks(
+        paths: Iterable[Path],
+        status: TaskStatus | None,
+        assigned: str | None,
+        tag: str | None,
+        task_type: str | None,
+    ) -> list[Task]:
+        tasks = []
+        for path in paths:
+            task = task_from_file(path)
+            if status and task.status != status:
+                continue
+            if assigned and task.assigned != assigned:
+                continue
+            if tag and tag not in task.tags:
+                continue
+            if task_type and task.type.value != task_type:
+                continue
+            tasks.append(task)
+        return tasks
+
     def create_task(self, project: str, title: str, **kwargs) -> Task:
         """Create a new task and write to disk. Uses atomic file creation."""
         self.ensure_project(project)
@@ -99,19 +122,7 @@ class TaskStore:
         if not tasks_dir.exists():
             return []
 
-        tasks = []
-        for path in sorted(tasks_dir.glob("task-*.md")):
-            task = task_from_file(path)
-            if status and task.status != status:
-                continue
-            if assigned and task.assigned != assigned:
-                continue
-            if tag and tag not in task.tags:
-                continue
-            if task_type and task.type.value != task_type:
-                continue
-            tasks.append(task)
-        return tasks
+        return self._filter_tasks(sorted(tasks_dir.glob("task-*.md")), status, assigned, tag, task_type)
 
     def update_task(self, project: str, task_id: str, **updates) -> Task | None:
         """Update whitelisted fields and write back to disk (locked + atomic)."""
@@ -168,7 +179,7 @@ class TaskStore:
             archive_dir = self._tasks_dir(project) / "done"
             archive_dir.mkdir(parents=True, exist_ok=True)
             dest = archive_dir / f"{sanitize_name(task_id)}.md"
-            content = path.read_text()
+            content = path.read_text(encoding="utf-8")
             atomic_write(dest, content)
             path.unlink()
         # Clean up orphaned lock sidecar
@@ -201,16 +212,4 @@ class TaskStore:
         if not archive_dir.exists():
             return []
 
-        tasks = []
-        for path in sorted(archive_dir.glob("task-*.md")):
-            task = task_from_file(path)
-            if status and task.status != status:
-                continue
-            if assigned and task.assigned != assigned:
-                continue
-            if tag and tag not in task.tags:
-                continue
-            if task_type and task.type.value != task_type:
-                continue
-            tasks.append(task)
-        return tasks
+        return self._filter_tasks(sorted(archive_dir.glob("task-*.md")), status, assigned, tag, task_type)

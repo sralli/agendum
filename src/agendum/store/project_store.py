@@ -43,7 +43,7 @@ class ProjectStore:
         path = self._config_path()
         if not path.exists():
             return BoardConfig()
-        data = yaml.safe_load(path.read_text()) or {}
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         return BoardConfig(**data)
 
     def create_project(self, name: str, description: str = "") -> Project:
@@ -82,12 +82,12 @@ class ProjectStore:
         spec = ""
         spec_path = project_dir / "spec.md"
         if spec_path.exists():
-            spec = spec_path.read_text()
+            spec = spec_path.read_text(encoding="utf-8")
 
         plan = ""
         plan_path = project_dir / "plan.md"
         if plan_path.exists():
-            plan = plan_path.read_text()
+            plan = plan_path.read_text(encoding="utf-8")
 
         return Project(name=name, spec=spec, plan=plan)
 
@@ -123,7 +123,7 @@ class ProjectStore:
         path = self._policy_path(project)
         if not path.exists():
             return ProjectPolicy()
-        data = yaml.safe_load(path.read_text()) or {}
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         return ProjectPolicy.model_validate(data)
 
     def update_policy(self, project: str, **updates) -> ProjectPolicy:

@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
-
 from tests.conftest import call
 
 
-@pytest.mark.asyncio
 async def test_board_init_creates_structure(mcp_server):
     mcp, stores, _ = mcp_server
     result = await call(mcp, "pm_board_init", name="testboard")
@@ -18,7 +15,6 @@ async def test_board_init_creates_structure(mcp_server):
     assert (stores.root / "config.yaml").exists()
 
 
-@pytest.mark.asyncio
 async def test_board_init_idempotent(mcp_server):
     mcp, _, _ = mcp_server
     r1 = await call(mcp, "pm_board_init", name="testboard")
@@ -27,7 +23,6 @@ async def test_board_init_idempotent(mcp_server):
     assert "Initialized" in r2  # no error on second call
 
 
-@pytest.mark.asyncio
 async def test_board_status_empty(mcp_server):
     mcp, _, _ = mcp_server
     result = await call(mcp, "pm_board_status")
@@ -35,7 +30,6 @@ async def test_board_status_empty(mcp_server):
     assert "Total tasks: 0" in result
 
 
-@pytest.mark.asyncio
 async def test_board_status_with_project_and_tasks(mcp_server):
     mcp, _, _ = mcp_server
     await call(mcp, "pm_board_init")
@@ -48,7 +42,6 @@ async def test_board_status_with_project_and_tasks(mcp_server):
     assert "Total tasks: 2" in result
 
 
-@pytest.mark.asyncio
 async def test_board_status_shows_blocked(mcp_server):
     mcp, _, _ = mcp_server
     await call(mcp, "pm_board_init")
@@ -63,7 +56,6 @@ async def test_board_status_shows_blocked(mcp_server):
 # --- additional coverage ---
 
 
-@pytest.mark.asyncio
 async def test_board_init_returns_config_json(mcp_server):
     """pm_board_init: result includes JSON config with the board name."""
     mcp, _, _ = mcp_server
@@ -72,7 +64,6 @@ async def test_board_init_returns_config_json(mcp_server):
     assert "Config:" in result
 
 
-@pytest.mark.asyncio
 async def test_board_status_project_not_in_list_after_no_init(mcp_server):
     """pm_board_status: without any projects returns 'none' for projects list."""
     mcp, _, _ = mcp_server

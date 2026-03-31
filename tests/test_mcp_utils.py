@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from tests.conftest import call
 
 
@@ -12,7 +10,6 @@ async def _init(mcp) -> None:
     await call(mcp, "pm_project_create", name="proj")
 
 
-@pytest.mark.asyncio
 async def test_check_deps_empty_project(mcp_server):
     mcp, _, _ = mcp_server
     await _init(mcp)
@@ -21,7 +18,6 @@ async def test_check_deps_empty_project(mcp_server):
     assert "No dependency cycles" in result
 
 
-@pytest.mark.asyncio
 async def test_check_deps_shows_ready_tasks(mcp_server):
     mcp, _, _ = mcp_server
     await _init(mcp)
@@ -32,7 +28,6 @@ async def test_check_deps_shows_ready_tasks(mcp_server):
     assert "task-001" in result
 
 
-@pytest.mark.asyncio
 async def test_check_deps_no_cycles(mcp_server):
     mcp, _, _ = mcp_server
     await _init(mcp)
@@ -42,7 +37,6 @@ async def test_check_deps_no_cycles(mcp_server):
     assert "No dependency cycles" in result
 
 
-@pytest.mark.asyncio
 async def test_check_deps_total_count(mcp_server):
     mcp, _, _ = mcp_server
     await _init(mcp)
@@ -55,7 +49,6 @@ async def test_check_deps_total_count(mcp_server):
 # --- pm_check_deps error path ---
 
 
-@pytest.mark.asyncio
 async def test_check_deps_invalid_project(mcp_server):
     """pm_check_deps: invalid project name (path traversal) returns Error."""
     mcp, _, _ = mcp_server

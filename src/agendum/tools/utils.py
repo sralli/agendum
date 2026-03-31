@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 from agendum.task_graph import detect_cycles, find_unblocked_tasks
 
+if TYPE_CHECKING:
+    from mcp.server.fastmcp import FastMCP
 
-def register(mcp, stores, agents):
+    from agendum.models import Agent
+
+
+def register(mcp: FastMCP, stores: Any, agents: dict[str, Agent]) -> None:
     """Register utility tools on the MCP server."""
 
     @mcp.tool()

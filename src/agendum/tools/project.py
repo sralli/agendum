@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
 
-def register(mcp, stores, agents):
+if TYPE_CHECKING:
+    from mcp.server.fastmcp import FastMCP
+
+    from agendum.models import Agent
+
+
+def register(mcp: FastMCP, stores: Any, agents: dict[str, Agent]) -> None:
     """Register project tools on the MCP server."""
 
     @mcp.tool()
@@ -35,7 +42,7 @@ def register(mcp, stores, agents):
         except ValueError as e:
             return f"Error: {e}"
         if not p:
-            return f"Project '{project}' not found."
+            return f"Error: project '{project}' not found."
         return f"# Project: {p.name}\n\n## Spec\n{p.spec}\n\n## Plan\n{p.plan}"
 
     @mcp.tool()

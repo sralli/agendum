@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from agendum.models import (
     ContextPacket,
@@ -17,6 +18,50 @@ from agendum.tools.orchestrator._helpers import (
     parse_csv,
     resolve_and_unblock,
 )
+
+
+def _write_trace(
+    stores,
+    project: str,
+    task: Task,
+    plan_id: str | None,
+    agent_id: str,
+    model: str | None,
+    completion_status: TaskCompletionStatus,
+    concerns_list: list[str],
+    context_list: list[str],
+    block_reason: str | None,
+    files_list: list[str],
+    review_cycles: int,
+    tests_list: list[str],
+    tests_passed: bool,
+    criteria_list: list[str],
+) -> ExecutionTrace:
+    """Construct and write an ExecutionTrace, returning the trace object."""
+    trace = ExecutionTrace(
+        task_id=task.id,
+        plan_id=plan_id,
+        project=project,
+        agent_id=agent_id,
+        model=model,
+        completed=datetime.now(UTC),
+        completion_status=completion_status,
+        concerns=concerns_list,
+        context_needed=context_list,
+        block_reason=block_reason,
+        files_changed=files_list,
+        review_cycles=review_cycles,
+        tests_run=tests_list,
+        tests_passed=tests_passed,
+        criteria_addressed=criteria_list,
+        task_type=task.type.value if task.type else None,
+        task_category=task.category.value if task.category else None,
+        task_priority=task.priority.value if task.priority else None,
+    )
+    if trace.started:
+        trace.duration_seconds = (trace.completed - trace.started).total_seconds()
+    stores.trace.write_trace(trace)
+    return trace
 
 
 def _render_task_dispatch(packet: ContextPacket, task: Task, status: TaskStatus) -> list[str]:
@@ -71,7 +116,13 @@ def _render_task_dispatch(packet: ContextPacket, task: Task, status: TaskStatus)
     return lines
 
 
-def register(mcp, stores, agents, enricher=None):
+if TYPE_CHECKING:
+    from mcp.server.fastmcp import FastMCP
+
+    from agendum.models import Agent
+
+
+def register(mcp: FastMCP, stores: Any, agents: dict[str, Agent], enricher: Any = None) -> None:
     """Register dispatch tools on the MCP server."""
 
     @mcp.tool()
@@ -229,30 +280,23 @@ def register(mcp, stores, agents, enricher=None):
         stores.task.add_progress(project, task_id, agent_id, progress_msg)
 
         # Write execution trace
-        trace = ExecutionTrace(
-            task_id=task_id,
-            plan_id=plan_id,
+        _write_trace(
+            stores=stores,
             project=project,
+            task=task,
+            plan_id=plan_id,
             agent_id=agent_id,
             model=model,
-            completed=datetime.now(UTC),
             completion_status=completion_status,
-            concerns=concerns_list,
-            context_needed=context_list,
+            concerns_list=concerns_list,
+            context_list=context_list,
             block_reason=block_reason,
-            files_changed=files_list,
+            files_list=files_list,
             review_cycles=review_cycles,
-            tests_run=tests_list,
+            tests_list=tests_list,
             tests_passed=tests_passed,
-            criteria_addressed=criteria_list,
-            task_type=task.type.value if task.type else None,
-            task_category=task.category.value if task.category else None,
-            task_priority=task.priority.value if task.priority else None,
+            criteria_list=criteria_list,
         )
-        if trace.started:
-            trace.duration_seconds = (trace.completed - trace.started).total_seconds()
-
-        stores.trace.write_trace(trace)
 
         result_lines = [f"Reported: {task_id} — {completion_status.value}"]
 
@@ -271,11 +315,10 @@ def register(mcp, stores, agents, enricher=None):
                 result_lines[0] = f"Reported: {task_id} — {completion_status.value} (awaiting review)"
                 result_lines.append("Review required: call pm_orchestrate_review to approve.")
                 return "\n".join(result_lines)
-
-        if new_task_status == TaskStatus.DONE:
-            unblocked = resolve_and_unblock(stores, project, task_id)
-            if unblocked:
-                result_lines.append(f"Unblocked: {', '.join(unblocked)}")
-            result_lines.extend(check_plan_level_complete(stores, project, plan_id, task_id))
+            else:
+                unblocked = resolve_and_unblock(stores, project, task_id)
+                if unblocked:
+                    result_lines.append(f"Unblocked: {', '.join(unblocked)}")
+                result_lines.extend(check_plan_level_complete(stores, project, plan_id, task_id))
 
         return "\n".join(result_lines)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 from agendum.models import ExecutionStatus, ExecutionTrace, TaskCompletionStatus, TaskStatus
 from agendum.tools.orchestrator._helpers import (
     check_plan_level_complete,
@@ -18,7 +20,13 @@ _DEFAULT_REVIEW_CHECKLISTS: dict[str, list[str]] = {
 }
 
 
-def register(mcp, stores, agents):
+if TYPE_CHECKING:
+    from mcp.server.fastmcp import FastMCP
+
+    from agendum.models import Agent
+
+
+def register(mcp: FastMCP, stores: Any, agents: dict[str, Agent]) -> None:
     """Register review tools on the MCP server."""
 
     @mcp.tool()

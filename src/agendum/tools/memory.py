@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
 
-def register(mcp, stores, agents):
+if TYPE_CHECKING:
+    from mcp.server.fastmcp import FastMCP
+
+    from agendum.models import Agent
+
+
+def register(mcp: FastMCP, stores: Any, agents: dict[str, Agent]) -> None:
     """Register memory tools on the MCP server."""
 
     @mcp.tool()

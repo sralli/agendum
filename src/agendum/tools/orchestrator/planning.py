@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import TYPE_CHECKING, Any
 
 from agendum.models import (
     ApprovalPolicy,
@@ -15,8 +16,13 @@ from agendum.models import (
 )
 from agendum.task_graph import detect_cycles, topological_levels
 
+if TYPE_CHECKING:
+    from mcp.server.fastmcp import FastMCP
 
-def register(mcp, stores, agents):
+    from agendum.models import Agent
+
+
+def register(mcp: FastMCP, stores: Any, agents: dict[str, Agent]) -> None:
     """Register planning tools on the MCP server."""
 
     @mcp.tool()
@@ -126,7 +132,7 @@ def register(mcp, stores, agents):
                 constraints=td.get("constraints", []),
                 task_type=t.type.value,
                 task_priority=t.priority.value,
-                test_requirements=t.test_requirements if hasattr(t, "test_requirements") else [],
+                test_requirements=t.test_requirements,
             )
 
         # Create the plan

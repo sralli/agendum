@@ -6,6 +6,7 @@ import logging
 import re
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import frontmatter
 import yaml
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 # --- Helpers ---
 
 
-def _ensure_list(val) -> list:
+def _ensure_list(val: Any) -> list:
     """Coerce a value to a list (handles YAML scalars)."""
     if val is None:
         return []
@@ -85,7 +86,7 @@ def _load_yaml_block(text: str):
     try:
         return yaml.safe_load(match.group(1))
     except Exception:
-        logger.warning("Failed to parse YAML block")
+        logger.warning("Failed to parse YAML block", exc_info=True)
         return None
 
 
@@ -97,7 +98,7 @@ def _parse_structured_handoff(text: str) -> AgentHandoffRecord | None:
     try:
         return AgentHandoffRecord.model_validate(data)
     except Exception:
-        logger.warning("Failed to validate structured handoff")
+        logger.warning("Failed to validate structured handoff", exc_info=True)
         return None
 
 
@@ -109,17 +110,21 @@ def _parse_agent_history(text: str) -> list[AgentHandoffRecord]:
     try:
         return [AgentHandoffRecord.model_validate(item) for item in data if isinstance(item, dict)]
     except Exception:
-        logger.warning("Failed to validate agent history")
+        logger.warning("Failed to validate agent history", exc_info=True)
         return []
+
+
+def _dump_record(record: AgentHandoffRecord) -> dict:
+    """Convert a handoff record to a dict with serialized timestamp."""
+    d = record.model_dump(exclude_none=True)
+    if "timestamp" in d and hasattr(d["timestamp"], "isoformat"):
+        d["timestamp"] = d["timestamp"].isoformat()
+    return d
 
 
 def _handoff_record_to_yaml(record: AgentHandoffRecord) -> str:
     """Serialize an AgentHandoffRecord to a YAML dict string."""
-    d = record.model_dump(exclude_none=True)
-    # Convert datetime to ISO string for YAML
-    if "timestamp" in d and hasattr(d["timestamp"], "isoformat"):
-        d["timestamp"] = d["timestamp"].isoformat()
-    return yaml.dump(d, default_flow_style=False, sort_keys=False).rstrip()
+    return yaml.dump(_dump_record(record), default_flow_style=False, sort_keys=False).rstrip()
 
 
 def _safe_enum(enum_cls, value, default):
@@ -243,12 +248,7 @@ def task_to_markdown(task: Task) -> str:
 
     if task.agent_history:
         sections.append("## Agent History")
-        history_data = []
-        for rec in task.agent_history:
-            d = rec.model_dump(exclude_none=True)
-            if "timestamp" in d and hasattr(d["timestamp"], "isoformat"):
-                d["timestamp"] = d["timestamp"].isoformat()
-            history_data.append(d)
+        history_data = [_dump_record(rec) for rec in task.agent_history]
         sections.append("```yaml")
         sections.append(yaml.dump(history_data, default_flow_style=False, sort_keys=False).rstrip())
         sections.append("```")

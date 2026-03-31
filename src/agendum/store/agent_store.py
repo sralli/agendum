@@ -35,7 +35,7 @@ class AgentStore:
         if not path.exists():
             return None
         try:
-            return AgentPersistenceRecord.model_validate_json(path.read_text())
+            return AgentPersistenceRecord.model_validate_json(path.read_text(encoding="utf-8"))
         except Exception:
             return None
 

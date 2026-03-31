@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from tests.conftest import call
 
 
@@ -14,7 +12,6 @@ async def _init(mcp) -> None:
 # --- pm_memory_write + pm_memory_read ---
 
 
-@pytest.mark.asyncio
 async def test_memory_write_and_read(mcp_server):
     mcp, _, _ = mcp_server
     await _init(mcp)
@@ -23,7 +20,6 @@ async def test_memory_write_and_read(mcp_server):
     assert "Foo bar" in result
 
 
-@pytest.mark.asyncio
 async def test_memory_read_empty(mcp_server):
     mcp, _, _ = mcp_server
     await _init(mcp)
@@ -31,7 +27,6 @@ async def test_memory_read_empty(mcp_server):
     assert "is empty" in result
 
 
-@pytest.mark.asyncio
 async def test_memory_read_all_scopes(mcp_server):
     mcp, _, _ = mcp_server
     await _init(mcp)
@@ -41,14 +36,12 @@ async def test_memory_read_all_scopes(mcp_server):
         assert f"content for {scope}" in result
 
 
-@pytest.mark.asyncio
 async def test_memory_read_invalid_scope(mcp_server):
     mcp, _, _ = mcp_server
     result = await call(mcp, "pm_memory_read", scope="bogus")
     assert "Error:" in result
 
 
-@pytest.mark.asyncio
 async def test_memory_write_invalid_scope(mcp_server):
     mcp, _, _ = mcp_server
     result = await call(mcp, "pm_memory_write", scope="bogus", content="nope")
@@ -58,7 +51,6 @@ async def test_memory_write_invalid_scope(mcp_server):
 # --- pm_memory_append ---
 
 
-@pytest.mark.asyncio
 async def test_memory_append_happy(mcp_server):
     mcp, _, _ = mcp_server
     await _init(mcp)
@@ -69,7 +61,6 @@ async def test_memory_append_happy(mcp_server):
     assert "agent-1" in content
 
 
-@pytest.mark.asyncio
 async def test_memory_append_multiple(mcp_server):
     mcp, _, _ = mcp_server
     await _init(mcp)
@@ -80,7 +71,6 @@ async def test_memory_append_multiple(mcp_server):
     assert "Entry 2" in content
 
 
-@pytest.mark.asyncio
 async def test_memory_append_invalid_scope(mcp_server):
     mcp, _, _ = mcp_server
     result = await call(mcp, "pm_memory_append", scope="bogus", entry="nope")
@@ -90,7 +80,6 @@ async def test_memory_append_invalid_scope(mcp_server):
 # --- pm_memory_search ---
 
 
-@pytest.mark.asyncio
 async def test_memory_search_happy(mcp_server):
     mcp, _, _ = mcp_server
     await _init(mcp)
@@ -101,7 +90,6 @@ async def test_memory_search_happy(mcp_server):
     assert "Search results" in result
 
 
-@pytest.mark.asyncio
 async def test_memory_search_no_matches(mcp_server):
     mcp, _, _ = mcp_server
     await _init(mcp)
