@@ -6,8 +6,8 @@ import click
 
 from agendum.config import resolve_root
 from agendum.models import TaskStatus
+from agendum.store.board_store import BoardStore
 from agendum.store.project_store import ProjectStore
-from agendum.store.task_store import TaskStore
 from agendum.task_graph import suggest_next_task
 
 
@@ -37,7 +37,7 @@ def status(ctx: click.Context) -> None:
     """Show board overview."""
     root = ctx.obj["root"]
     project_store = ProjectStore(root)
-    task_store = TaskStore(root)
+    board_store = BoardStore(root)
 
     projects = project_store.list_projects()
     if not projects:
@@ -45,12 +45,12 @@ def status(ctx: click.Context) -> None:
         return
 
     for proj in projects:
-        tasks = task_store.list_tasks(proj)
+        items = board_store.list_items(proj)
         by_status: dict[str, int] = {}
-        for t in tasks:
-            by_status[t.status.value] = by_status.get(t.status.value, 0) + 1
+        for item in items:
+            by_status[item.status.value] = by_status.get(item.status.value, 0) + 1
 
-        click.echo(f"\n📋 {proj} ({len(tasks)} tasks)")
+        click.echo(f"\n{proj} ({len(items)} items)")
         for s, count in sorted(by_status.items()):
             click.echo(f"  {s}: {count}")
 
@@ -84,42 +84,44 @@ def project_list(ctx: click.Context) -> None:
 
 
 @cli.group()
-def task() -> None:
-    """Manage tasks."""
+def item() -> None:
+    """Manage board items."""
     pass
 
 
-@task.command("create")
+@item.command("add")
 @click.argument("project")
 @click.argument("title")
 @click.option("--priority", "-p", default="medium")
-@click.option("--type", "task_type", default="dev")
-@click.option("--depends", "-d", multiple=True, help="Task IDs this depends on")
+@click.option("--type", "item_type", default="dev")
+@click.option("--depends", "-d", multiple=True, help="Item IDs this depends on")
 @click.pass_context
-def task_create(
-    ctx: click.Context, project: str, title: str, priority: str, task_type: str, depends: tuple[str, ...]
+def item_add(
+    ctx: click.Context, project: str, title: str, priority: str, item_type: str, depends: tuple[str, ...]
 ) -> None:
-    """Create a new task."""
+    """Add a new item to the board."""
     root = ctx.obj["root"]
-    store = TaskStore(root)
-    t = store.create_task(
+    from agendum.models import TaskPriority, TaskType
+
+    store = BoardStore(root)
+    created = store.create_item(
         project=project,
         title=title,
-        priority=priority,
-        type=task_type,
+        priority=TaskPriority(priority),
+        type=TaskType(item_type),
         depends_on=list(depends),
     )
-    click.echo(f"Created {t.id}: {t.title}")
+    click.echo(f"Created {created.id}: {created.title}")
 
 
-@task.command("list")
+@item.command("list")
 @click.argument("project")
 @click.option("--status", "-s", default=None)
 @click.pass_context
-def task_list(ctx: click.Context, project: str, status: str | None) -> None:
-    """List tasks in a project."""
+def item_list(ctx: click.Context, project: str, status: str | None) -> None:
+    """List items in a project."""
     root = ctx.obj["root"]
-    store = TaskStore(root)
+    store = BoardStore(root)
     status_enum = None
     if status:
         try:
@@ -128,30 +130,29 @@ def task_list(ctx: click.Context, project: str, status: str | None) -> None:
             valid = ", ".join(s.value for s in TaskStatus)
             click.echo(f"Invalid status '{status}'. Valid: {valid}", err=True)
             return
-    tasks = store.list_tasks(project, status=status_enum)
+    items = store.list_items(project, status=status_enum)
 
-    for t in tasks:
-        assigned = f" [{t.assigned}]" if t.assigned else ""
-        click.echo(f"  [{t.status.value:^11}] {t.id}: {t.title} ({t.priority.value}){assigned}")
+    for item in items:
+        click.echo(f"  [{item.status.value:^11}] {item.id}: {item.title} ({item.priority.value})")
 
 
 @cli.command()
 @click.argument("project")
 @click.pass_context
 def next(ctx: click.Context, project: str) -> None:
-    """Suggest the next task to work on."""
+    """Suggest the next item to work on."""
     root = ctx.obj["root"]
-    store = TaskStore(root)
-    tasks = store.all_tasks(project)
-    task = suggest_next_task(tasks)
+    store = BoardStore(root)
+    items = store.list_items(project)
+    suggested = suggest_next_task(items)
 
-    if not task:
-        click.echo("No tasks available.")
+    if not suggested:
+        click.echo("No items available.")
         return
 
-    click.echo(f"Next: {task.id}: {task.title} ({task.priority.value})")
-    if task.context:
-        click.echo(f"  Context: {task.context[:200]}")
+    click.echo(f"Next: {suggested.id}: {suggested.title} ({suggested.priority.value})")
+    if suggested.notes:
+        click.echo(f"  Notes: {suggested.notes[:200]}")
 
 
 @cli.command()

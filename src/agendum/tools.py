@@ -1,4 +1,4 @@
-"""v2 MCP tool registrations — 11 tools from pm_init through pm_learn."""
+"""MCP tool registrations — 11 tools from pm_init through pm_learn."""
 
 from __future__ import annotations
 
