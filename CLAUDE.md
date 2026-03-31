@@ -79,6 +79,32 @@ uv run ruff format .        # format (CI checks --check)
 - **Traces are append-only** — one file per execution attempt, never modified
 - **Dependency resolution**: always include `list_archived_tasks()` when computing `done_ids`
 
+### Model routing
+
+Configure per-project model tier preferences via `pm_orchestrate_policy`. Models are referenced by generic tiers (e.g., `small`, `large`, `fast`) which the parent agent maps to concrete model names in AGENTS.md.
+
+**ProjectPolicy.model_routing fields:**
+- `default` — fallback tier for all tasks
+- `review` — tier for review stages (when `review_required=True`)
+- `by_category` — dict mapping TaskCategory → tier (e.g., `{"code-complex": "large", "docs": "fast"}`)
+- `by_type` — dict mapping TaskType → tier (e.g., `{"dev": "small", "planning": "large"}`)
+- `by_task` — dict mapping task ID → tier for task-specific overrides
+
+**Resolution hierarchy** (first match wins):
+1. `by_task[task.id]` — task-specific override
+2. `by_category[task.category]` — complexity-based routing
+3. `by_type[task.type]` — domain-based routing
+4. `review` — only for review stages (when `is_review=True`)
+5. `default` — final fallback
+6. `None` — no recommendation
+
+**Tool integration:**
+
+- `pm_orchestrate_policy(project, model_default=..., model_review=..., model_by_category=..., model_by_type=...)` — configure routing. Call with no args to view.
+- `pm_orchestrate_next` includes `**Recommended Model:** <tier>` in dispatch output (only if tier is configured).
+- `pm_orchestrate_report` includes `Review model: <tier>` when `review_required=True` and review stage begins.
+- `pm_agent_suggest(project, task_id)` includes `Recommended model: <tier>` in suggestions.
+
 ## File layout
 
 ```

@@ -17,6 +17,7 @@ from agendum.tools.orchestrator._helpers import (
     check_plan_level_complete,
     parse_csv,
     resolve_and_unblock,
+    resolve_model,
 )
 
 
@@ -64,9 +65,18 @@ def _write_trace(
     return trace
 
 
-def _render_task_dispatch(packet: ContextPacket, task: Task, status: TaskStatus) -> list[str]:
+def _render_task_dispatch(
+    packet: ContextPacket,
+    task: Task,
+    status: TaskStatus,
+    *,
+    recommended_model: str | None = None,
+) -> list[str]:
     """Render an enriched context packet as markdown lines."""
     lines = [f"### {task.id}: {task.title} [{status.value}]"]
+
+    if recommended_model:
+        lines.append(f"**Recommended Model:** {recommended_model}")
 
     if packet.goal:
         lines.append(f"**Goal:** {packet.goal}")
@@ -217,7 +227,8 @@ def register(mcp: FastMCP, stores: Any, agents: dict[str, Agent], enricher: Any 
                     max_context_chars=policy.max_context_chars,
                 )
 
-            lines.extend(_render_task_dispatch(packet, task, status))
+            recommended_model = resolve_model(policy, task)
+            lines.extend(_render_task_dispatch(packet, task, status, recommended_model=recommended_model))
 
         return "\n".join(lines)
 
@@ -314,6 +325,9 @@ def register(mcp: FastMCP, stores: Any, agents: dict[str, Agent], enricher: Any 
                 stores.task.add_progress(project, task_id, agent_id, "Awaiting review (policy: review_required)")
                 result_lines[0] = f"Reported: {task_id} — {completion_status.value} (awaiting review)"
                 result_lines.append("Review required: call pm_orchestrate_review to approve.")
+                review_model = resolve_model(policy, task, is_review=True)
+                if review_model:
+                    result_lines.append(f"Review model: {review_model}")
                 return "\n".join(result_lines)
             else:
                 unblocked = resolve_and_unblock(stores, project, task_id)

@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from agendum.models import Agent, AgentPersistenceRecord
+from agendum.tools.orchestrator._helpers import resolve_model
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
@@ -128,4 +129,14 @@ def register(mcp: FastMCP, stores: Any, agents: dict[str, Agent]) -> None:
         task_type = task.type.value
         category, suggestion = routing.get(task_type, ("unspecified", "Any capable agent"))
 
-        return f"Task: {task.id} ({task.title})\nType: {task_type} -> Category: {category}\nSuggestion: {suggestion}"
+        policy = stores.project.get_policy(project)
+        recommended = resolve_model(policy, task)
+
+        lines = [
+            f"Task: {task.id} ({task.title})",
+            f"Type: {task_type} -> Category: {category}",
+        ]
+        if recommended:
+            lines.append(f"Recommended model: {recommended}")
+        lines.append(f"Suggestion: {suggestion}")
+        return "\n".join(lines)

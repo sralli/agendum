@@ -304,6 +304,21 @@ class ExternalReference(BaseModel):
     path_or_url: str
 
 
+class ModelRouting(BaseModel):
+    """Model tier preferences for task dispatch and review.
+
+    Values are generic tier strings (e.g., "large", "small", "fast") that the
+    parent agent maps to concrete model names.  Agendum recommends; the caller
+    enforces.
+    """
+
+    default: str | None = None
+    review: str | None = None
+    by_category: dict[str, str] = Field(default_factory=dict)
+    by_type: dict[str, str] = Field(default_factory=dict)
+    by_task: dict[str, str] = Field(default_factory=dict)
+
+
 class ProjectPolicy(BaseModel):
     """Per-project orchestration policy."""
 
@@ -314,3 +329,4 @@ class ProjectPolicy(BaseModel):
     max_context_chars: int = 8000
     disabled_sources: list[str] = Field(default_factory=list)
     external_references: list[ExternalReference] = Field(default_factory=list)
+    model_routing: ModelRouting = Field(default_factory=ModelRouting)

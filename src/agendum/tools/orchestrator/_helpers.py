@@ -2,8 +2,41 @@
 
 from __future__ import annotations
 
-from agendum.models import TaskStatus
+from agendum.models import ProjectPolicy, Task, TaskStatus
 from agendum.task_graph import resolve_completions
+
+
+def resolve_model(
+    policy: ProjectPolicy,
+    task: Task,
+    *,
+    is_review: bool = False,
+) -> str | None:
+    """Resolve the recommended model tier for a task based on policy routing.
+
+    Resolution hierarchy (first match wins):
+    1. by_task[task.id]
+    2. by_category[task.category]
+    3. by_type[task.type]
+    4. review (only when is_review=True)
+    5. default
+    6. None (no recommendation)
+    """
+    routing = policy.model_routing
+
+    if task.id in routing.by_task:
+        return routing.by_task[task.id]
+
+    if task.category and task.category.value in routing.by_category:
+        return routing.by_category[task.category.value]
+
+    if task.type and task.type.value in routing.by_type:
+        return routing.by_type[task.type.value]
+
+    if is_review and routing.review:
+        return routing.review
+
+    return routing.default
 
 
 def parse_csv(value: str | None) -> list[str]:
