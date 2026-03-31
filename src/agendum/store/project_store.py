@@ -114,4 +114,3 @@ class ProjectStore:
         if not projects_dir.exists():
             return []
         return sorted(d.name for d in projects_dir.iterdir() if d.is_dir())
-

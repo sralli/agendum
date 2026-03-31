@@ -57,13 +57,15 @@ class LearningsStore:
             tags = meta.get("tags", [])
             if tag and tag not in tags:
                 continue
-            results.append({
-                "id": meta.get("id", path.stem),
-                "tags": tags,
-                "source_project": meta.get("source_project"),
-                "created": meta.get("created"),
-                "content": post.content,
-            })
+            results.append(
+                {
+                    "id": meta.get("id", path.stem),
+                    "tags": tags,
+                    "source_project": meta.get("source_project"),
+                    "created": meta.get("created"),
+                    "content": post.content,
+                }
+            )
         return results
 
     def search_learnings(self, query: str) -> list[dict]:
