@@ -11,7 +11,7 @@ from agendum.store.locking import atomic_write, get_lock
 class MemoryStore:
     """File-based memory storage."""
 
-    SCOPES = ("project", "decisions", "patterns")
+    SCOPES = ("project", "decisions", "patterns", "learnings")
 
     def __init__(self, root: Path):
         self.root = root

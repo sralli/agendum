@@ -5,24 +5,24 @@ from __future__ import annotations
 import sys
 from typing import Protocol, runtime_checkable
 
-from agendum.models import ContextPacket, Task
+from agendum.models import BoardItem, WorkPackage
 
 
 @runtime_checkable
 class ContextSource(Protocol):
-    """A pluggable source that can enrich a context packet.
+    """A pluggable source that can enrich a work package.
 
     Each source receives only the specific store it needs via its constructor.
-    The enrich method must return a new ContextPacket (never mutate the input).
+    The enrich method must return a new WorkPackage (never mutate the input).
     """
 
     name: str
 
-    def enrich(self, packet: ContextPacket, task: Task, project: str) -> ContextPacket: ...
+    def enrich(self, package: WorkPackage, item: BoardItem, project: str) -> WorkPackage: ...
 
 
 class ContextEnricher:
-    """Registry of context sources. Enriches packets by folding over sources."""
+    """Registry of context sources. Enriches packages by folding over sources."""
 
     def __init__(self) -> None:
         self._sources: list[ContextSource] = []
@@ -42,46 +42,43 @@ class ContextEnricher:
 
     def enrich(
         self,
-        packet: ContextPacket,
-        task: Task,
+        package: WorkPackage,
+        item: BoardItem,
         project: str,
         disabled_sources: list[str] | None = None,
         max_context_chars: int = 8000,
-    ) -> ContextPacket:
-        """Enrich a static context packet with live data from all registered sources.
+    ) -> WorkPackage:
+        """Enrich a work package with live data from all registered sources.
 
-        Sources disabled by policy are skipped. Budget truncation is applied
+        Sources disabled by name are skipped. Budget truncation is applied
         after all sources have contributed.
         """
         for source in self._sources:
             if disabled_sources and source.name in disabled_sources:
                 continue
             try:
-                packet = source.enrich(packet, task, project)
+                package = source.enrich(package, item, project)
             except Exception:
                 print(f"agendum: enrichment source '{source.name}' failed, skipping", file=sys.stderr)
 
-        return self._apply_budget(packet, max_context_chars)
+        return self._apply_budget(package, max_context_chars)
 
-    def _apply_budget(self, packet: ContextPacket, max_chars: int) -> ContextPacket:
+    def _apply_budget(self, package: WorkPackage, max_chars: int) -> WorkPackage:
         """Truncate enrichment fields to stay within budget.
 
-        Priority (highest first): project_rules, dependency_outputs,
-        memory_context, review_history.
+        Priority (highest first): project_rules, dependency_context, memory_context.
         """
         budget = _BudgetAllocator(max_chars)
 
-        project_rules = budget.allocate(packet.project_rules, 3000, "project_rules")
-        dependency_outputs = budget.allocate(packet.dependency_outputs, 2000, "dependency_outputs")
-        memory_context = budget.allocate(packet.memory_context, 2000, "memory_context")
-        review_history = budget.allocate(packet.review_history, 1000, "review_history")
+        project_rules = budget.allocate(package.project_rules, 3000, "project_rules")
+        dependency_context = budget.allocate(package.dependency_context, 2000, "dependency_context")
+        memory_context = budget.allocate(package.memory_context, 2000, "memory_context")
 
-        return packet.model_copy(
+        return package.model_copy(
             update={
                 "project_rules": project_rules,
-                "dependency_outputs": dependency_outputs,
+                "dependency_context": dependency_context,
                 "memory_context": memory_context,
-                "review_history": review_history,
             }
         )
 
@@ -106,6 +103,6 @@ class _BudgetAllocator:
             return content
 
         truncated = content[:limit].rsplit("\n", 1)[0]  # truncate at last newline
-        suffix = f"\n... ({field_name} truncated)"
+        suffix = f"\n...({field_name} truncated)"
         self._remaining -= len(truncated) + len(suffix)
         return truncated + suffix
