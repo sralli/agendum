@@ -10,7 +10,7 @@ class TestProjectStore:
         config = store.init_board("test-board")
         assert config.name == "test-board"
         assert (root / "projects").is_dir()
-        assert (root / "agents").is_dir()
+        assert (root / "learnings").is_dir()
         assert (root / "memory").is_dir()
         assert (root / "config.yaml").exists()
 
@@ -22,7 +22,7 @@ class TestProjectStore:
         assert project.name == "webapp"
         assert (root / "projects" / "webapp" / "spec.md").exists()
         assert (root / "projects" / "webapp" / "plan.md").exists()
-        assert (root / "projects" / "webapp" / "tasks").is_dir()
+        assert (root / "projects" / "webapp" / "board").is_dir()
 
     def test_create_updates_config(self, tmp_root):
         root = tmp_root

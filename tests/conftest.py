@@ -36,19 +36,12 @@ async def v2_server(tmp_path):
     from agendum.store.memory_store import MemoryStore
     from agendum.store.project_store import ProjectStore
 
-    class _StubTraceStore:
-        """Minimal stub — TraceStore depends on ExecutionTrace which is not yet in v2 models."""
-
-        def __init__(self, root):
-            self.root = root
-
     class Stores:
         def __init__(self, root):
             self._root = root
             self.board = BoardStore(root)
             self.project = ProjectStore(root)
             self.memory = MemoryStore(root)
-            self.trace = _StubTraceStore(root)
             self.learnings = LearningsStore(root)
 
         @property
@@ -63,7 +56,7 @@ async def v2_server(tmp_path):
     enricher.register(DependencySource(stores.board))
 
     mcp = FastMCP("agendum-test-v2")
-    from agendum.tools.v2 import register
+    from agendum.tools import register
 
     register(mcp, stores, enricher)
 

@@ -5,23 +5,26 @@ from __future__ import annotations
 from pathlib import Path
 from threading import Lock, Thread
 
+from agendum.store.board_store import BoardStore
 from agendum.store.memory_store import MemoryStore
-from agendum.store.task_store import TaskStore
+from agendum.store.project_store import ProjectStore
 
 
 def test_concurrent_add_progress_no_data_loss(tmp_path: Path) -> None:
-    """20 threads adding progress to the same task must all survive."""
+    """20 threads adding progress to the same item must all survive."""
     root = tmp_path / ".agendum"
     root.mkdir()
-    store = TaskStore(root)
-    store.ensure_project("demo")
-    task = store.create_task("demo", "Concurrent test task")
+    project_store = ProjectStore(root)
+    project_store.init_board()
+    project_store.create_project("demo")
+    store = BoardStore(root)
+    item = store.create_item("demo", "Concurrent test item")
 
     errors: list[Exception] = []
 
     def worker(i: int) -> None:
         try:
-            store.add_progress("demo", task.id, f"agent-{i}", f"Step {i}")
+            store.add_progress("demo", item.id, f"agent-{i}", f"Step {i}")
         except Exception as e:
             errors.append(e)
 
@@ -32,17 +35,19 @@ def test_concurrent_add_progress_no_data_loss(tmp_path: Path) -> None:
         t.join()
 
     assert not errors, f"Unexpected errors: {errors}"
-    result = store.get_task("demo", task.id)
+    result = store.get_item("demo", item.id)
     assert result is not None
     assert len(result.progress) == 20, f"Expected 20 entries, got {len(result.progress)}"
 
 
-def test_concurrent_create_task_unique_ids(tmp_path: Path) -> None:
-    """10 threads creating tasks simultaneously must produce unique IDs."""
+def test_concurrent_create_item_unique_ids(tmp_path: Path) -> None:
+    """10 threads creating items simultaneously must produce unique IDs."""
     root = tmp_path / ".agendum"
     root.mkdir()
-    store = TaskStore(root)
-    store.ensure_project("demo")
+    project_store = ProjectStore(root)
+    project_store.init_board()
+    project_store.create_project("demo")
+    store = BoardStore(root)
 
     ids: list[str] = []
     lock = Lock()
@@ -50,7 +55,7 @@ def test_concurrent_create_task_unique_ids(tmp_path: Path) -> None:
 
     def worker() -> None:
         try:
-            created = store.create_task("demo", "Parallel task")
+            created = store.create_item("demo", "Parallel item")
             with lock:
                 ids.append(created.id)
         except Exception as e:

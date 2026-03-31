@@ -3,9 +3,9 @@
 import pytest
 
 from agendum.store import sanitize_name
+from agendum.store.board_store import BoardStore
 from agendum.store.memory_store import MemoryStore
 from agendum.store.project_store import ProjectStore
-from agendum.store.task_store import TaskStore
 
 
 class TestSanitizeName:
@@ -42,21 +42,21 @@ class TestSanitizeName:
             sanitize_name("...")
 
 
-class TestTaskStorePathTraversal:
+class TestBoardStorePathTraversal:
     def test_create_rejects_traversal_project(self, tmp_root):
-        store = TaskStore(tmp_root)
+        store = BoardStore(tmp_root)
         with pytest.raises(ValueError, match="Invalid name"):
-            store.create_task("../../etc", "evil task")
+            store.create_item("../../etc", "evil item")
 
-    def test_get_rejects_traversal_task_id(self, tmp_root):
-        store = TaskStore(tmp_root)
+    def test_get_rejects_traversal_item_id(self, tmp_root):
+        store = BoardStore(tmp_root)
         with pytest.raises(ValueError, match="Invalid name"):
-            store.get_task("demo", "../../etc/passwd")
+            store.get_item("demo", "../../etc/passwd")
 
     def test_list_rejects_traversal(self, tmp_root):
-        store = TaskStore(tmp_root)
+        store = BoardStore(tmp_root)
         with pytest.raises(ValueError, match="Invalid name"):
-            store.list_tasks("../../../")
+            store.list_items("../../../")
 
 
 class TestMemoryStoreValidation:

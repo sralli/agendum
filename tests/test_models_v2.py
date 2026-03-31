@@ -170,10 +170,11 @@ class TestCutModels:
 
         assert not hasattr(models, "Agent")
 
-    def test_no_task(self):
+    def test_task_is_alias_for_board_item(self):
         from agendum import models
 
-        assert not hasattr(models, "Task")
+        # Task kept as alias for BoardItem (task_graph.py compatibility)
+        assert models.Task is models.BoardItem
 
     def test_no_execution_plan(self):
         from agendum import models

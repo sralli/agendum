@@ -42,7 +42,7 @@ def test_list_by_tag(store: LearningsStore):
 
     filtered = store.list_learnings(tag="a")
     assert len(filtered) == 2
-    ids = {l["id"] for l in filtered}
+    ids = {entry["id"] for entry in filtered}
     assert "learning-001" in ids
     assert "learning-003" in ids
 

@@ -1,4 +1,4 @@
-"""agendum MCP server — wires up stores and registers tool modules."""
+"""agendum MCP server — Project Memory + Scoping Engine."""
 
 from __future__ import annotations
 
@@ -7,37 +7,24 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from agendum.config import resolve_root
-from agendum.models import Agent
-from agendum.store.agent_store import AgentStore
+from agendum.enrichment.pipeline import ContextEnricher
+from agendum.enrichment.sources import DependencySource, MemorySource, ProjectRulesSource
+from agendum.store.board_store import BoardStore
+from agendum.store.learnings_store import LearningsStore
 from agendum.store.memory_store import MemoryStore
-from agendum.store.plan_store import PlanStore
 from agendum.store.project_store import ProjectStore
-from agendum.store.task_store import TaskStore
-from agendum.store.trace_store import TraceStore
-from agendum.tools import agent, board, memory, orchestrator, project, task, task_workflow, utils
-from agendum.tools.orchestrator.enrichment import ContextEnricher
-from agendum.tools.orchestrator.sources import (
-    ExternalReferencesSource,
-    HandoffSource,
-    MemorySource,
-    ProjectRulesSource,
-    ReviewHistorySource,
-)
-
-# --- Lazy store initialization ---
+from agendum.tools import register
 
 
 class _Stores:
-    """Lazy-initialized stores. Resolves root at first access, not import time."""
+    """Lazy-initialized stores — resolve root at first access."""
 
-    def __init__(self):
-        self._task: TaskStore | None = None
+    def __init__(self) -> None:
+        self._root: Path | None = None
+        self._board: BoardStore | None = None
         self._project: ProjectStore | None = None
         self._memory: MemoryStore | None = None
-        self._agent: AgentStore | None = None
-        self._plan: PlanStore | None = None
-        self._trace: TraceStore | None = None
-        self._root: Path | None = None
+        self._learnings: LearningsStore | None = None
 
     @property
     def root(self) -> Path:
@@ -46,10 +33,10 @@ class _Stores:
         return self._root
 
     @property
-    def task(self) -> TaskStore:
-        if self._task is None:
-            self._task = TaskStore(self.root)
-        return self._task
+    def board(self) -> BoardStore:
+        if self._board is None:
+            self._board = BoardStore(self.root)
+        return self._board
 
     @property
     def project(self) -> ProjectStore:
@@ -64,60 +51,28 @@ class _Stores:
         return self._memory
 
     @property
-    def agent_store(self) -> AgentStore:
-        if self._agent is None:
-            self._agent = AgentStore(self.root)
-        return self._agent
-
-    @property
-    def plan(self) -> PlanStore:
-        if self._plan is None:
-            self._plan = PlanStore(self.root)
-        return self._plan
-
-    @property
-    def trace(self) -> TraceStore:
-        if self._trace is None:
-            self._trace = TraceStore(self.root)
-        return self._trace
+    def learnings(self) -> LearningsStore:
+        if self._learnings is None:
+            self._learnings = LearningsStore(self.root)
+        return self._learnings
 
 
 stores = _Stores()
 
-# In-memory agent registry (agents re-register each session)
-agents_registry: dict[str, Agent] = {}
-
-# --- MCP Server ---
-
-mcp = FastMCP(
-    "agendum",
-    instructions=(
-        "agendum is a universal project management system for AI coding agents. "
-        "Use pm_* tools to manage projects, tasks, memory, and agent coordination. "
-        "Tasks are stored as Markdown files with YAML frontmatter in .agendum/. "
-        "Start with pm_board_init to initialize, then pm_project_create to create a project. "
-        "Use pm_board_status to see an overview of all projects and tasks."
-    ),
-)
-
-# --- Context Enrichment Pipeline ---
-
 
 class _LazyEnricher:
-    """Defers enricher source registration until first use."""
+    """Defers enrichment source registration until first use."""
 
-    def __init__(self):
-        self._enricher: ContextEnricher | None = None
+    def __init__(self) -> None:
+        self._inner: ContextEnricher | None = None
 
     def _init(self) -> ContextEnricher:
-        if self._enricher is None:
-            self._enricher = ContextEnricher()
-            self._enricher.register(ProjectRulesSource(stores.root))
-            self._enricher.register(MemorySource(stores.memory))
-            self._enricher.register(HandoffSource(stores.task))
-            self._enricher.register(ReviewHistorySource())
-            self._enricher.register(ExternalReferencesSource(stores.project))
-        return self._enricher
+        if self._inner is None:
+            self._inner = ContextEnricher()
+            self._inner.register(ProjectRulesSource(stores.root))
+            self._inner.register(MemorySource(stores.memory))
+            self._inner.register(DependencySource(stores.board))
+        return self._inner
 
     def enrich(self, *args, **kwargs):
         return self._init().enrich(*args, **kwargs)
@@ -125,12 +80,12 @@ class _LazyEnricher:
 
 enricher = _LazyEnricher()
 
-# Register all tool modules
-board.register(mcp, stores, agents_registry)
-project.register(mcp, stores, agents_registry)
-task.register(mcp, stores, agents_registry)
-task_workflow.register(mcp, stores, agents_registry)
-memory.register(mcp, stores, agents_registry)
-agent.register(mcp, stores, agents_registry)
-utils.register(mcp, stores, agents_registry)
-orchestrator.register(mcp, stores, agents_registry, enricher)
+INSTRUCTIONS = """agendum is a project memory and scoping engine for AI coding agents.
+Use pm_* tools to manage projects, board items, memory, and work packages.
+Start with pm_init to initialize, then pm_project to create a project.
+Use pm_status to see an overview. Use pm_add to add items to the board.
+Use pm_ingest to import a plan file. Use pm_next to get scoped work packages.
+Use pm_done to report completion. Use pm_learn for cross-project learnings."""
+
+mcp = FastMCP("agendum", instructions=INSTRUCTIONS)
+register(mcp, stores, enricher)
