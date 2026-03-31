@@ -49,8 +49,8 @@ class PlanStore:
         data = plan.model_dump(mode="json", exclude_none=True)
         try:
             atomic_create(path, yaml.dump(data, default_flow_style=False, sort_keys=False))
-        except FileExistsError:
-            raise ValueError(f"Plan '{plan.id}' already exists in project '{plan.project}'")
+        except FileExistsError as err:
+            raise ValueError(f"Plan '{plan.id}' already exists in project '{plan.project}'") from err
 
         return plan
 

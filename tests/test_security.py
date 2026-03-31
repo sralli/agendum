@@ -15,47 +15,47 @@ class TestSanitizeName:
         assert sanitize_name("webapp_v2") == "webapp_v2"
 
     def test_rejects_path_traversal(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid name"):
             sanitize_name("../../etc")
 
     def test_rejects_forward_slash(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid name"):
             sanitize_name("path/to/evil")
 
     def test_rejects_backslash(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid name"):
             sanitize_name("path\\to\\evil")
 
     def test_rejects_null_byte(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid name"):
             sanitize_name("evil\x00name")
 
     def test_rejects_empty(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid name"):
             sanitize_name("")
 
     def test_strips_leading_dot(self):
         assert sanitize_name(".hidden") == "hidden"
 
     def test_rejects_only_dots(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid name"):
             sanitize_name("...")
 
 
 class TestTaskStorePathTraversal:
     def test_create_rejects_traversal_project(self, tmp_root):
         store = TaskStore(tmp_root)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid name"):
             store.create_task("../../etc", "evil task")
 
     def test_get_rejects_traversal_task_id(self, tmp_root):
         store = TaskStore(tmp_root)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid name"):
             store.get_task("demo", "../../etc/passwd")
 
     def test_list_rejects_traversal(self, tmp_root):
         store = TaskStore(tmp_root)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid name"):
             store.list_tasks("../../../")
 
 
@@ -67,7 +67,7 @@ class TestMemoryStoreValidation:
 
     def test_rejects_arbitrary_scope(self, tmp_root):
         store = MemoryStore(tmp_root)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid memory scope"):
             store.write("evil_scope", "content")
 
     def test_accepts_valid_scopes(self, tmp_root):
@@ -83,7 +83,7 @@ class TestProjectStoreValidation:
         root = tmp_root
         store = ProjectStore(root)
         store.init_board()
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid name"):
             store.create_project("../../etc")
 
     def test_update_spec_rejects_nonexistent(self, tmp_root):

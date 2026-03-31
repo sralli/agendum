@@ -51,7 +51,7 @@ line-length = 120
 target-version = "py313"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
+select = ["E", "F", "I", "UP", "B", "N", "PT"]
 
 [dependency-groups]
 dev = [

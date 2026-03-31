@@ -44,18 +44,18 @@ def detect_cycles(tasks: list[Task]) -> list[list[str]]:
     for task in tasks:
         graph[task.id] = list(task.depends_on)
 
-    WHITE, GRAY, BLACK = 0, 1, 2
-    color: dict[str, int] = {node: WHITE for node in graph}
+    white, gray, black = 0, 1, 2
+    color: dict[str, int] = {node: white for node in graph}
     parent: dict[str, str | None] = {node: None for node in graph}
     cycles: list[list[str]] = []
     seen_cycles: set[tuple[str, ...]] = set()
 
     for start in graph:
-        if color[start] != WHITE:
+        if color[start] != white:
             continue
 
         stack: list[tuple[str, int]] = [(start, 0)]
-        color[start] = GRAY
+        color[start] = gray
 
         while stack:
             node, dep_idx = stack[-1]
@@ -68,7 +68,7 @@ def detect_cycles(tasks: list[Task]) -> list[list[str]]:
                 if dep not in color:
                     continue  # dep references a non-existent task
 
-                if color[dep] == GRAY:
+                if color[dep] == gray:
                     # Found a cycle — trace back
                     cycle = [dep]
                     for sn, _ in reversed(stack):
@@ -82,12 +82,12 @@ def detect_cycles(tasks: list[Task]) -> list[list[str]]:
                     if normalized not in seen_cycles:
                         seen_cycles.add(normalized)
                         cycles.append(list(cycle))
-                elif color[dep] == WHITE:
-                    color[dep] = GRAY
+                elif color[dep] == white:
+                    color[dep] = gray
                     parent[dep] = node
                     stack.append((dep, 0))
             else:
-                color[node] = BLACK
+                color[node] = black
                 stack.pop()
 
     return cycles
