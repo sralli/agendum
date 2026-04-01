@@ -8,19 +8,6 @@ import pytest
 import pytest_asyncio
 from mcp.server.fastmcp import FastMCP
 
-from agendum.server import _Stores
-from agendum.store.plan_store import PlanStore
-from agendum.store.trace_store import TraceStore
-from agendum.tools import agent, board, memory, orchestrator, project, task, task_workflow, utils
-from agendum.tools.orchestrator.enrichment import ContextEnricher
-from agendum.tools.orchestrator.sources import (
-    ExternalReferencesSource,
-    HandoffSource,
-    MemorySource,
-    ProjectRulesSource,
-    ReviewHistorySource,
-)
-
 
 @pytest.fixture
 def tmp_root(tmp_path: Path) -> Path:
@@ -30,78 +17,48 @@ def tmp_root(tmp_path: Path) -> Path:
     return root
 
 
-@pytest_asyncio.fixture
-async def mcp_server(tmp_path: Path):
-    """Fresh FastMCP instance with isolated stores, wired for all tool modules."""
-    root = tmp_path / ".agendum"
-    root.mkdir()
-
-    stores = _Stores()
-    stores._root = root  # bypass resolve_root()
-    stores._plan = PlanStore(root)
-    stores._trace = TraceStore(root)
-
-    agents_registry: dict = {}
-
-    # Build enricher with all sources
-    enricher = ContextEnricher()
-    enricher.register(ProjectRulesSource(root))
-    enricher.register(MemorySource(stores.memory))
-    enricher.register(HandoffSource(stores.task))
-    enricher.register(ReviewHistorySource())
-    enricher.register(ExternalReferencesSource(stores.project))
-
-    mcp = FastMCP("agendum-test")
-    board.register(mcp, stores, agents_registry)
-    project.register(mcp, stores, agents_registry)
-    task.register(mcp, stores, agents_registry)
-    task_workflow.register(mcp, stores, agents_registry)
-    memory.register(mcp, stores, agents_registry)
-    agent.register(mcp, stores, agents_registry)
-    utils.register(mcp, stores, agents_registry)
-    orchestrator.register(mcp, stores, agents_registry, enricher)
-
-    return mcp, stores, agents_registry
-
-
 async def call(mcp: FastMCP, tool_name: str, **kwargs) -> str:
-    """Call an MCP tool and return the text result."""
+    """Call an MCP tool and return the first text content."""
     content, _ = await mcp.call_tool(tool_name, kwargs)
     return content[0].text
 
 
-# --- Orchestrator test helpers ---
-
-import json  # noqa: E402
-
-
 @pytest_asyncio.fixture
-async def setup(mcp_server):
-    """Create a project for orchestrator tests."""
-    mcp, stores, agents = mcp_server
-    await call(mcp, "pm_board_init")
-    await call(mcp, "pm_project_create", name="myapp", description="Test app")
-    return mcp, stores, agents
+async def v2_server(tmp_path):
+    """Fresh FastMCP instance with v2 stores and tools."""
+    root = tmp_path / ".agendum"
+    root.mkdir()
 
+    from agendum.enrichment.pipeline import ContextEnricher
+    from agendum.enrichment.sources import DependencySource, MemorySource, ProjectLearningsSource, ProjectRulesSource
+    from agendum.store.board_store import BoardStore
+    from agendum.store.learnings_store import LearningsStore
+    from agendum.store.memory_store import MemoryStore
+    from agendum.store.project_store import ProjectStore
 
-def _tasks_json(tasks: list[dict]) -> str:
-    return json.dumps(tasks)
+    class Stores:
+        def __init__(self, root):
+            self._root = root
+            self.board = BoardStore(root)
+            self.project = ProjectStore(root)
+            self.memory = MemoryStore(root)
+            self.learnings = LearningsStore(root)
 
+        @property
+        def root(self):
+            return self._root
 
-async def _create_and_approve(mcp, project, goal, tasks, **kwargs):
-    """Create a plan and approve it for execution."""
-    result = await call(
-        mcp,
-        "pm_orchestrate_plan",
-        project=project,
-        goal=goal,
-        tasks_json=_tasks_json(tasks),
-        **kwargs,
-    )
-    plan_id = "plan-001"
-    for line in result.splitlines():
-        if "Plan Created:" in line:
-            plan_id = line.split("Plan Created:")[1].strip()
-            break
-    await call(mcp, "pm_orchestrate_approve", project=project, plan_id=plan_id)
-    return result, plan_id
+    stores = Stores(root)
+
+    enricher = ContextEnricher()
+    enricher.register(ProjectRulesSource(root))
+    enricher.register(MemorySource(stores.memory))
+    enricher.register(DependencySource(stores.board))
+    enricher.register(ProjectLearningsSource(stores.learnings))
+
+    mcp = FastMCP("agendum-test-v2")
+    from agendum.tools import register
+
+    register(mcp, stores, enricher)
+
+    return mcp, stores

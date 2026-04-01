@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 from pathlib import Path
 
 
@@ -24,6 +25,22 @@ def resolve_root(home: bool = False) -> Path:
     target = Path.cwd() / ".agendum"
     _migrate_if_needed(Path.cwd() / ".agentpm", target)
     return target
+
+
+def derive_board_name() -> str:
+    """Derive a board name from git remote or directory name."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            return Path(result.stdout.strip()).name
+    except (subprocess.SubprocessError, OSError):
+        pass
+    return Path.cwd().name
 
 
 def _migrate_if_needed(old: Path, new: Path) -> None:

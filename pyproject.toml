@@ -1,6 +1,6 @@
 [project]
 name = "agendum"
-version = "0.1.0"
+version = "0.2.0"
 description = "Universal project management for AI coding agents — MCP server + CLI + git-native task board"
 readme = "README.md"
 license = "MIT"
@@ -52,6 +52,9 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "N", "PT"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/agendum/tools.py" = ["E501"]  # Tool descriptions are intentionally long for MCP clients
 
 [dependency-groups]
 dev = [
