@@ -16,10 +16,11 @@ An [MCP server](https://modelcontextprotocol.io/) that gives any AI agent (Claud
 
 AI coding agents are powerful but stateless. They forget what they did last session, lose context between tasks, and have no structured way to scope complex work. agendum fixes this:
 
+- **Zero config** — Install it, create a project, start working. Auto-initializes on first tool call.
 - **Session continuity** — An agent picks up exactly where the last one left off. Decisions, progress, and context persist in git-friendly Markdown files.
-- **Scoped work packages** — `pm_next` returns a bounded work package with enriched context (project rules, memory, dependency info), so the agent knows exactly what to do and what NOT to touch.
-- **Cross-project learning** — Patterns and decisions learned in one project inform work in others via global learnings.
-- **Works with any MCP client** — Not locked to one IDE or agent. Any tool that speaks MCP can use agendum's 11 tools.
+- **Scoped work packages** — `pm_next` returns a bounded work package with complexity signals, enriched context (project rules, memory, dependency info, learnings), so the agent knows exactly what to do and what NOT to touch.
+- **Cross-project learning** — Patterns and decisions learned in one project inform work in others. Learnings can be global or project-scoped.
+- **Works with any MCP client** — Claude Code, Cursor, Windsurf, VS Code, Cline, Roo Code, Claude Desktop. Any tool that speaks MCP.
 - **Git-native** — All state is human-readable Markdown + YAML in a `.agendum/` directory. Diff it, commit it, review it in PRs.
 
 ### Example: What It Looks Like in Claude Code
@@ -28,7 +29,7 @@ AI coding agents are powerful but stateless. They forget what they did last sess
 You: I have a plan file for the API rewrite. Ingest it.
 
 Agent:
-  → pm_ingest(project="api-rewrite", plan_path="plan.md")
+  → pm_ingest(project="api-rewrite", plan_file="plan.md")
 
   Ingested 4 board items from plan:
     item-001: Schema design [high]
@@ -50,11 +51,12 @@ You: Done with the schema. Here's what I decided...
 
 Agent:
   → pm_done(project="api-rewrite", item_id="item-001",
-      decisions=["Using code-first with Strawberry"],
-      patterns=["N+1 queries need DataLoader"])
+      decisions="Using code-first with Strawberry",
+      patterns="N+1 queries need DataLoader",
+      verified=True)
 
-  Completed item-001. Unblocked: item-002, item-003
-  Next session: pm_status → pm_next → continue
+  Marked item-001 as done. Unblocked: item-002, item-003
+  > Next: pm_next("api-rewrite") to continue with newly unblocked tasks
 ```
 
 ## Quick Start
@@ -192,21 +194,27 @@ agendum status                                  # Dashboard overview
 | `pm_add` | Add a board item to a project |
 | `pm_board` | View and filter the project board |
 | `pm_ingest` | Import a plan file into bounded board items with dependencies |
-| `pm_next` | Get next scoped work package with enriched context |
-| `pm_done` | Complete an item, record decisions and patterns |
+| `pm_next` | Get next scoped work package with complexity signal and enriched context |
+| `pm_done` | Complete an item, record decisions, patterns, and learnings. Supports verification gate and git auto-extract |
 | `pm_block` | Report a task as blocked with reason |
 | `pm_memory` | Read, write, append, or search project memory |
 | `pm_learn` | Record cross-project or project-scoped learnings |
 
 ### Key Capabilities
 
+- **Zero-config** — auto-initializes on first tool call, no `pm_init` required
 - **Plan ingestion** — `pm_ingest` reads a plan file and creates bounded board items with dependencies
-- **Scoped work packages** — `pm_next` returns enriched context (project rules, memory, dependency info)
+- **Scoped work packages** — `pm_next` returns enriched context (project rules, memory, dependency info, project learnings)
+- **Complexity signals** — work packages include complexity level (trivial/small/medium/large) for scoping
+- **Adaptive context** — enrichment budget scales with task complexity (4K chars for trivial, 10K for large)
+- **Verification gate** — `pm_done(verified=True)` distinguishes tested from untested completions
+- **Auto-extract** — `pm_done` reads `git diff` and `git log` automatically when no files specified
+- **Project-scoped learnings** — `pm_learn(project="x")` stores learnings that enrich future work packages for that project
+- **Cross-project learnings** — global patterns discovered in one project inform work in others
 - **Cross-session continuity** — pick up exactly where you left off
 - **Decision tracking** — `pm_done` captures decisions and patterns for future sessions
-- **Cross-project learnings** — patterns discovered in one project inform others
 - **Dependency resolution** — topological ordering, auto-unblocking when dependencies complete
-- **Enrichment pipeline** — pluggable context sources (project rules, memory, dependencies)
+- **Enrichment pipeline** — pluggable context sources (project rules, memory, dependencies, project learnings)
 - **Git-native** — all state is Markdown + YAML, diffable and committable
 
 ## How It Works
@@ -237,12 +245,12 @@ All state is stored as human-readable Markdown files with YAML frontmatter:
 ### The Flow
 
 ```
-1. PLAN (harness)    brainstorming → writing-plans → plan file
-2. INGEST (agendum)  pm_ingest reads plan → creates bounded board items
-3. SCOPE (agendum)   pm_next returns scoped work package with context
-4. EXECUTE (harness)  Agent works within the scoped package
-5. REPORT (agendum)  pm_done records completion, decisions, patterns
-6. RESUME (agendum)  Next session: pm_status → pm_next → continue
+1. PLAN (your agent)  Write or generate a plan file
+2. INGEST (agendum)   pm_ingest reads plan → creates bounded board items
+3. SCOPE (agendum)    pm_next returns scoped work package with context
+4. EXECUTE (your agent) Work within the scoped package
+5. REPORT (agendum)   pm_done records completion, decisions, patterns
+6. RESUME (agendum)   Next session: pm_status → pm_next → continue
 ```
 
 ## Architecture
@@ -257,14 +265,14 @@ src/agendum/
 ├── cli.py                # CLI interface
 ├── enrichment/
 │   ├── pipeline.py       # ContextEnricher, ContextSource protocol
-│   └── sources.py        # ProjectRulesSource, MemorySource, DependencySource
+│   └── sources.py        # ProjectRulesSource, MemorySource, DependencySource, ProjectLearningsSource
 └── store/
     ├── locking.py        # get_lock() + atomic_write() concurrency primitives
     ├── board_store.py    # BoardItem CRUD
     ├── board_format.py   # Markdown ↔ BoardItem serialization
     ├── project_store.py  # Project metadata
     ├── memory_store.py   # Scoped memory storage
-    └── learnings_store.py # Global cross-project learnings
+    └── learnings_store.py # Global and project-scoped learnings
 ```
 
 ## Development
